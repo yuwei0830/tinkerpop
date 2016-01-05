@@ -37,6 +37,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -61,8 +62,8 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
         switch (nameOfTest) {
             case "should200OnGETWithGremlinQueryStringArgumentWithIteratorResult":
             case "should200OnPOSTWithGremlinJsonEndcodedBodyWithIteratorResult":
-            case "should200OnPOSTWithGremlinJsonEndcodedBodyWithIteratorResultAndRebinding":
-            case "should200OnGETWithGremlinQueryStringArgumentWithIteratorResultAndRebinding":
+            case "should200OnPOSTWithGremlinJsonEndcodedBodyWithIteratorResultAndAliases":
+            case "should200OnGETWithGremlinQueryStringArgumentWithIteratorResultAndAliases":
                 settings.scriptEngines.get("gremlin-groovy").scripts = Arrays.asList("scripts/generate-classic.groovy");
                 break;
             case "should200OnPOSTTransactionalGraph":
@@ -81,11 +82,28 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
             case "should200OnPOSTWithAuthorizationHeader":
                 configureForAuthentication(settings);
                 break;
+            case "should401OnPOSTWithInvalidPasswordAuthorizationHeaderOld":
+            case "should200OnPOSTWithAuthorizationHeaderOld":
+                configureForAuthenticationOld(settings);
+                break;
         }
         return settings;
     }
 
     private void configureForAuthentication(final Settings settings) {
+        final Settings.AuthenticationSettings authSettings = new Settings.AuthenticationSettings();
+        authSettings.className = SimpleAuthenticator.class.getName();
+
+        // use a credentials graph with one user in it: stephen/password
+        final Map<String,Object> authConfig = new HashMap<>();
+        authConfig.put(SimpleAuthenticator.CONFIG_CREDENTIALS_DB, "conf/tinkergraph-credentials.properties");
+
+        authSettings.config = authConfig;
+        settings.authentication = authSettings;
+    }
+
+    @Deprecated
+    private void configureForAuthenticationOld(final Settings settings) {
         final Settings.AuthenticationSettings authSettings = new Settings.AuthenticationSettings();
         authSettings.className = SimpleAuthenticator.class.getName();
 
@@ -193,6 +211,20 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
     }
 
     @Test
+    @Deprecated
+    public void should401OnPOSTWithInvalidPasswordAuthorizationHeaderOld() throws Exception {
+        final CloseableHttpClient httpclient = HttpClients.createDefault();
+        final HttpPost httppost = new HttpPost("http://localhost:8182");
+        httppost.addHeader("Content-Type", "application/json");
+        httppost.addHeader("Authorization", "Basic " + encoder.encodeToString("stephen:not-my-password".getBytes()));
+        httppost.setEntity(new StringEntity("{\"gremlin\":\"1-1\"}", Consts.UTF_8));
+
+        try (final CloseableHttpResponse response = httpclient.execute(httppost)) {
+            assertEquals(401, response.getStatusLine().getStatusCode());
+        }
+    }
+
+    @Test
     public void should200OnGETWithAuthorizationHeader() throws Exception {
         final CloseableHttpClient httpclient = HttpClients.createDefault();
         final HttpGet httpget = new HttpGet("http://localhost:8182?gremlin=1-1");
@@ -209,6 +241,24 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
 
     @Test
     public void should200OnPOSTWithAuthorizationHeader() throws Exception {
+        final CloseableHttpClient httpclient = HttpClients.createDefault();
+        final HttpPost httppost = new HttpPost("http://localhost:8182");
+        httppost.addHeader("Content-Type", "application/json");
+        httppost.addHeader("Authorization", "Basic " + encoder.encodeToString("stephen:password".getBytes()));
+        httppost.setEntity(new StringEntity("{\"gremlin\":\"1-1\"}", Consts.UTF_8));
+
+        try (final CloseableHttpResponse response = httpclient.execute(httppost)) {
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            assertEquals("application/json", response.getEntity().getContentType().getValue());
+            final String json = EntityUtils.toString(response.getEntity());
+            final JsonNode node = mapper.readTree(json);
+            assertEquals(0, node.get("result").get("data").get(0).intValue());
+        }
+    }
+
+    @Test
+    @Deprecated
+    public void should200OnPOSTWithAuthorizationHeaderOld() throws Exception {
         final CloseableHttpClient httpclient = HttpClients.createDefault();
         final HttpPost httppost = new HttpPost("http://localhost:8182");
         httppost.addHeader("Content-Type", "application/json");
@@ -253,9 +303,21 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
     }
 
     @Test
-    public void should200OnGETWithGremlinQueryStringArgumentWithIteratorResultAndRebinding() throws Exception {
+    public void should200OnGETWithGremlinQueryStringArgumentWithIteratorResultAndAliases() throws Exception {
+        // we can remove this first test when rebindings are completely removed
+        final CloseableHttpClient httpclientLegacy = HttpClients.createDefault();
+        final HttpGet httpgetLegacy = new HttpGet("http://localhost:8182?gremlin=g1.V()&rebindings.g1=g");
+
+        try (final CloseableHttpResponse response = httpclientLegacy.execute(httpgetLegacy)) {
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            assertEquals("application/json", response.getEntity().getContentType().getValue());
+            final String json = EntityUtils.toString(response.getEntity());
+            final JsonNode node = mapper.readTree(json);
+            assertEquals(6, node.get("result").get("data").size());
+        }
+
         final CloseableHttpClient httpclient = HttpClients.createDefault();
-        final HttpGet httpget = new HttpGet("http://localhost:8182?gremlin=g1.V()&rebindings.g1=g");
+        final HttpGet httpget = new HttpGet("http://localhost:8182?gremlin=g1.V()&aliases.g1=g");
 
         try (final CloseableHttpResponse response = httpclient.execute(httpget)) {
             assertEquals(200, response.getStatusLine().getStatusCode());
@@ -411,11 +473,48 @@ public class GremlinServerHttpIntegrateTest extends AbstractGremlinServerIntegra
     }
 
     @Test
-    public void should200OnPOSTWithGremlinJsonEndcodedBodyWithIteratorResultAndRebinding() throws Exception {
+    public void should200OnPOSTWithGremlinJsonEndcodedBodyWithTinkerGraphResult() throws Exception {
         final CloseableHttpClient httpclient = HttpClients.createDefault();
         final HttpPost httppost = new HttpPost("http://localhost:8182");
         httppost.addHeader("Content-Type", "application/json");
-        httppost.setEntity(new StringEntity("{\"gremlin\":\"g1.V()\",\"rebindings\":{\"g1\":\"g\"}}", Consts.UTF_8));
+        httppost.setEntity(new StringEntity("{\"gremlin\":\"org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerFactory.createModern()\"}", Consts.UTF_8));
+
+        try (final CloseableHttpResponse response = httpclient.execute(httppost)) {
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            assertEquals("application/json", response.getEntity().getContentType().getValue());
+            final String json = EntityUtils.toString(response.getEntity());
+            final JsonNode resultJson = mapper.readTree(json);
+            final JsonNode data = resultJson.get("result").get("data");
+            assertEquals(1, data.size());
+
+            final List<JsonNode> vertices = data.get(0).findValues(GraphSONTokens.VERTICES);
+            final List<JsonNode> edges = data.get(0).findValues(GraphSONTokens.EDGES);
+
+            assertEquals(6, vertices.get(0).size());
+            assertEquals(6, edges.get(0).size());
+        }
+    }
+
+    @Test
+    public void should200OnPOSTWithGremlinJsonEndcodedBodyWithIteratorResultAndAliases() throws Exception {
+        // we can remove this first test when rebindings are completely removed
+        final CloseableHttpClient httpclientLegacy = HttpClients.createDefault();
+        final HttpPost httppostLegacy = new HttpPost("http://localhost:8182");
+        httppostLegacy.addHeader("Content-Type", "application/json");
+        httppostLegacy.setEntity(new StringEntity("{\"gremlin\":\"g1.V()\",\"rebindings\":{\"g1\":\"g\"}}", Consts.UTF_8));
+
+        try (final CloseableHttpResponse response = httpclientLegacy.execute(httppostLegacy)) {
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            assertEquals("application/json", response.getEntity().getContentType().getValue());
+            final String json = EntityUtils.toString(response.getEntity());
+            final JsonNode node = mapper.readTree(json);
+            assertEquals(6, node.get("result").get("data").size());
+        }
+
+        final CloseableHttpClient httpclient = HttpClients.createDefault();
+        final HttpPost httppost = new HttpPost("http://localhost:8182");
+        httppost.addHeader("Content-Type", "application/json");
+        httppost.setEntity(new StringEntity("{\"gremlin\":\"g1.V()\",\"aliases\":{\"g1\":\"g\"}}", Consts.UTF_8));
 
         try (final CloseableHttpResponse response = httpclient.execute(httppost)) {
             assertEquals(200, response.getStatusLine().getStatusCode());

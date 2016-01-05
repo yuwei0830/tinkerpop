@@ -17,11 +17,43 @@ limitations under the License.
 Contributing
 ============
 
-Contributions via GitHub pull requests are gladly accepted from their original
-author. By submitting any copyrighted material via pull request, email, or other means
-you agree to license the material under the project's open source license and
-warrant that you have the legal authority to do so.
+Contributions via GitHub pull requests are gladly accepted from their original author. By submitting any copyrighted
+material via pull request, email, or other means you agree to license the material under the project's open source
+license and warrant that you have the legal authority to do so.
 
+Getting Started
+---------------
+
+New contributors can start development with TinkerPop by first link:https://help.github.com/articles/fork-a-repo/[forking
+then cloning] the Apache TinkerPop link:https://github.com/apache/incubator-tinkerpop[GitHub repository]. Generally
+speaking it is best to tie any work done to an issue in link:https://issues.apache.org/jira/browse/TINKERPOP3[JIRA].
+Either scan through JIRA for an existing open issue to work on or create a new one.
+
+NOTE: For those who are trying to find a place to start to contribute, consider looking at unresolved issues that
+have the "trivial" priority as these issues are specifically set aside as
+link:https://issues.apache.org/jira/issues/?jql=project%20%3D%20TINKERPOP3%20AND%20resolution%20%3D%20Unresolved%20AND%20priority%20%3D%20Trivial%20ORDER%20BY%20key%20DESC[low-hanging fruit]
+for newcomers.
+
+After making changes, submit a link:https://help.github.com/articles/using-pull-requests/[pull request] through
+GitHub, where the name of the pull request is prefixed with the JIRA issue number.  In this way, the pull request
+and its comments get tied back to the JIRA issue it references.
+
+Before issuing your pull request, please be sure of the following:
+
+. `mvn clean install` works successfully.
+. If the change requires modification to the documentation, which can be found in `docs/src`, please be sure to try to
+generate the docs.  If the changes are minimal and do not include code examples, it might be sufficient to test
+generate the docs to validate formatting by just doing `bin/process-docs.sh --dryRun`.  If there are code examples,
+please be sure to have Zookeeper and Hadoop running when doing a `bin/process-docs.sh`.  The documentation is
+generated to `/target/docs/htmlsingle`.
+. If necessary, run the integration tests.  For example, if the changes affect serialization or Gremlin Server/Driver
+operations then running the integration tests assures in addition to unit tests will definitely be necessary. After
+a successful `mvn clean install`, do `mvn verify -DskipIntegrationTests=false -pl gremlin-server`.
+
+Once a pull request is submitted it must go through <<rtc,review>> and will be merged once three TinkerPop committers
+offer positive vote and achieve Apache consensus.
+
+[[building-testing]]
 Building and Testing
 --------------------
 
@@ -91,6 +123,12 @@ It would also be helpful to join the public link:https://s.apache.org/tinkerpop[
 discussion.  This helps contributors to communicate in a more real-time way.  Anyone can join as a guest, but for
 regular contributors it may be best to request that an Apache HipChat account be created.
 
+Occasionally, online meetings via video conference are held.  These meetings are schedule via the dev mailing list
+about a week before they are to occur to find a day and time that is available for those interested in attending.
+On the day of the meeting, the meeting organizer will create a Google Hangout (or similar video conferencing link) to
+post to the TinkerPop room in HipChat.  At that point, all who are interested can attend.  Meeting minutes should be
+taken and added to the <<meetings,Meetings>> section of this document using the pattern already established.
+
 Release Notes
 ~~~~~~~~~~~~~
 
@@ -116,15 +154,14 @@ distinguished from other changes in the release notes.
 Branches
 ~~~~~~~~
 
-The "master" branch is used for the main line of development and release branches are constructed
-for ongoing maintenance work.  For example, the "tp30" branch is used to maintain the 3.0.x line
-while work on 3.1.x proceeds on "master".
+The "master" branch is used for the main line of development and release branches are constructed as needed
+for ongoing maintenance work. If new to the project or are returning to it after some time away, it may be good
+to send an email to the developer mailing list (or ask on HipChat) to find out what the current operating branches
+are.
 
-Other branches may be created for collaborating on features or for RFC's that
-other developers may want to inspect.  It is suggested that the JIRA issue ID be
-used as the prefix, since that triggers certain automation, and it provides a
-way to account for the branch lifecycle, i.e. "Who's branch is this, and can I
-delete it?"
+Other branches may be created for collaborating on features or for RFC's that other developers may want to inspect.
+It is suggested that the JIRA issue ID be used as the prefix, since that triggers certain automation, and it provides a
+way to account for the branch lifecycle, i.e. "Who's branch is this, and can I delete it?"
 
 For branches that are NOT associated with JIRA issues, developers should utilize their Apache ID as
 a branch name prefix.  This provides a unique namespace, and also a way to account for the branch lifecycle.
@@ -134,8 +171,8 @@ Developers should remove their own branches when they are no longer needed.
 Tags
 ~~~~
 
-Tags are used for milestones, release candidates, and approved releases.  Please
-refrain from creating arbitrary tags, as they produce permanent clutter.
+Tags are used for milestones, release candidates, and approved releases.  Please refrain from creating arbitrary
+tags, as they produce permanent clutter.
 
 Issue Tracker Conventions
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -156,11 +193,15 @@ reasonable workaround.  Given that definition, a `bug` should generally have ver
 ** Everything else is an `improvement` in the sense that any other work is an enhancement to the current codebase.
 * The "component" should be representative of the primary area of code that it applies to and all issues should have
 this property set.
-* Issues are not assigned "labels" with one exception: the "breaking" label.  The "breaking" label marks an issue
-as one that is representative of a change in the API that might affect users or vendors.  This label is important when
-organizing release notes.
+* Issues are not assigned "labels" with two exceptions:
+** The "breaking" label which marks an issue as one that is representative of a change in the API that might
+affect users or vendors.  This label is important when organizing release notes.
+** The "deprecation" label which is assigned to an issue that is about removing a deprecated portion of the API.
 * The "affects/fix version(s)" fields should be appropriately set, where the "fix version" implies the version on
 which that particular issue will completed.
+* The "priority" field can be arbitrarily applied with one exception.  The "trivial" option should be reserved for
+tasks that are "easy" for a potential new contributor to jump into and do not have significant impact to urgently
+required improvements.
 
 Code Style
 ~~~~~~~~~~
@@ -183,14 +224,14 @@ replaced then the comment can simply read "not replaced".  Additional comments t
 encouraged.
 ** `@see <a href="https://issues.apache.org/jira/browse/TINKERPOP3-XXX">TINKERPOP3-XXX</a>` - supply a link to the
 JIRA issue for reference.
-* All deprecation should be tied to a JIRA issue with a "breaking" label - the issue itself does not need to
+* All deprecation should typically be tied to a JIRA issue with a "breaking" label - the issue itself does not need to
 specifically or solely be about "deprecation" but it should be documented very clearly in the comments what was
 deprecated and what the path forward should be.
 * Be sure that deprecated methods are still under test - consider using javadoc/comments in the tests themselves to
 call out this fact.
 * Create a new JIRA issue to track removal of the deprecation for future evaluation - this issue should have the
-"breaking" label.
-* Provide a post to the developers and/or users mailing lists as the case requires to alert the community to the change.
+"breaking" label as well as a "deprecation" label.
+* Update the "upgrade documentation" to reflect the API change and how the reader should resolve it.
 
 The JIRA issues that track removal of deprecated methods should be periodically evaluated to determine if it is
 prudent to schedule them into a release.
@@ -213,6 +254,7 @@ When writing a test case for a Gremlin step, be sure to use the following conven
 ** `checkResults(Arrays.asList("marko","josh"), traversal)`
 ** `checkMap(new HashMap<String,Long>() {{ put("marko",1l); }}, traversal.next())`
 
+[[rtc]]
 Review then Commit
 ~~~~~~~~~~~~~~~~~~
 
@@ -270,3 +312,93 @@ When you submit a pull request, be sure it uses the following style.
 * Notes about what you will do when you merge to the respective release branch (e.g. update CHANGELOG).
 ** These types of "on merge tweaks" are typically done to extremely dynamic files to combat and merge conflicts.
 * If you are a TinkerPop committer, you can VOTE on your own pull request, so please do so.
+
+[[dependencies]]
+Dependencies
+~~~~~~~~~~~~
+
+There are many dependencies on other open source libraries in TinkerPop modules. When adding dependencies or
+altering the version of a dependency, developers must consider the implications that may apply to the TinkerPop
+LICENSE and NOTICE files. There are two implications to consider:
+
+. Does the dependency fit an Apache _approved_ license?
+. Given the addition or modification to a dependency, does it mean any change for TinkerPop LICENSE and NOTICE files?
+
+Understanding these implications is important for insuring that  TinkerPop stays compliant with the Apache 2 license
+that it releases under.
+
+Regarding the first item, refer to the Apache Legal for a list of link:http://www.apache.org/legal/resolved.html[approved licenses]
+that are compatible with the Apache 2 license.
+
+The second item requires a bit more effort to follow. The Apache website offers a
+link:http://www.apache.org/dev/licensing-howto.html[how-to guide] on the approach to maintaining appropriate LICENSE
+and NOTICE files, but this guide is designed to offer some more specific guidance as it pertains to TinkerPop
+and its distribution.
+
+To get started, TinkerPop has both "source" and "binary" LICENSE/NOTICE files:
+
+* Source LICENSE/NOTICE relate to files packaged with the released source code distribution:
+link:https://github.com/apache/incubator-tinkerpop/blob/master/LICENSE[LICENSE] / link:https://github.com/apache/incubator-tinkerpop/blob/master/NOTICE[NOTICE]
+* Binary LICENSE/NOTICE relate to files packaged with the released binary distributions:
+** Gremlin Console link:https://github.com/apache/incubator-tinkerpop/blob/master/gremlin-console/src/main/LICENSE[LICENSE]
+/ link:https://github.com/apache/incubator-tinkerpop/blob/master/gremlin-console/src/main/NOTICE[NOTICE]
+** Gremlin Server link:https://github.com/apache/incubator-tinkerpop/blob/master/gremlin-server/src/main/LICENSE[LICENSE]
+/ link:https://github.com/apache/incubator-tinkerpop/blob/master/gremlin-server/src/main/NOTICE[NOTICE]
+
+Source LICENSE and NOTICE
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+As dependencies are not typically added to the source distribution (i.e. the source zip distribution), there is
+typically no need to edit source LICENSE/NOTICE when editing a TinkerPop `pom.xml`. These files only need to be edited
+if the distribution has a file added to it.  Such a situation may arise from several scenarios, but it would most
+likely come from the addition of a source file from another library.
+
+* If the file being bundled is Apache licensed, then add an entry to NOTICE.
+* If the file being bundled is under a different approved license, then add an entry to LICENSE.
+
+Binary LICENSE and NOTICE
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The binary LICENSE/NOTICE is perhaps most impacted by changes to the various `pom.xml` files. After altering the
+`pom.xml` file of any module, build both Gremlin Console and Gremlin Server and examine the contents of both binary
+distributions, either:
+
+* target/apache-gremlin-console-x.y.z-distribution.zip
+* target/apache-gremlin-server-x.y.z-distribution.zip
+
+Apache licensed software does not need to be included in LICENSE, but if the new dependency is an Apache-approved
+license then it should be added in the pattern already defined.
+
+To determine if changes are required to the NOTICE, first check if the bundled jar has a NOTICE file in it.
+
+* If the bundled file does not have a NOTICE then no changes to TinkerPop's NOTICE are required.
+* If the NOTICE of the file being bundled is NOT Apache licensed then there is no change to TinkerPop's NOTICE.
+* If the NOTICE of the file being bundled is Apache licensed then include the copyright notification in TinkerPop's
+NOTICE.
+* If the NOTICE of the file being bundled is Apache licensed AND is an Apache Software Foundation project, then
+ONLY include the portion of that NOTICE in TinkerPop's NOTICE that is unrelated to the Apache boilerplate NOTICE.
+If there is no such portion that is different than the boilerplate then this NOTICE can be excluded (i.e. don't
+alter TinkerPop's NOTICE at all).
+
+Please refer to the link:http://www.apache.org/dev/licensing-howto.html#mod-notice[Modifications to Notice] section
+of the Apache "Licensing How-to" for more information.
+
+[[documentation]]
+Documentation
+~~~~~~~~~~~~~
+
+The documentation for TinkerPop is stored in the git repository in `docs/src/` and are then split into several
+subdirectories, each representing a "book" (or its own publishable body of work). If a new AsciiDoc file is added to
+a book, then it should also be included in the `index.asciidoc` file for that book, otherwise the preprocessor will
+ignore it. Likewise, if a whole new book (subdirectory) is added, it must include an `index.asciidoc` file to be
+recognized by the AsciiDoc preprocessor.
+
+Adding a book also requires a change to the root `pom.xml` file. Find the "asciidoc" Maven profile and add a new
+`<execution>` to the `asciidoctor-maven-plugin` configuration. For each book in `docs/src/`, there should be a
+related `<execution>` that generates the HTML from the AsciiDoc. Follows the patterns already established by
+the existing `<execution>` entries, paying special attention to the pathing of the '<sourceDirectory>',
+`<outputDirectory>` and `<imagesdir>`.  Note that the `<outputDirectory>` represents where the book will exist when
+uploaded to the server and should preserve the directory structure in git as referenced in `<sourceDirectory>`.
+
+Please see the <<building-testing,Building and Testing>> section for more information on how to generate the
+documentation.

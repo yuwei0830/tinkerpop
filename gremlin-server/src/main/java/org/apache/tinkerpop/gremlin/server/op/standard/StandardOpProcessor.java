@@ -34,9 +34,10 @@ import org.slf4j.LoggerFactory;
 
 import javax.script.Bindings;
 import javax.script.SimpleBindings;
-import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Simple {@link OpProcessor} implementation that handles {@code ScriptEngine} script evaluation outside the context
@@ -48,8 +49,11 @@ public class StandardOpProcessor extends AbstractEvalOpProcessor {
     private static final Logger logger = LoggerFactory.getLogger(StandardOpProcessor.class);
     public static final String OP_PROCESSOR_NAME = "";
 
+    protected final Function<Context, BindingSupplier> bindingMaker;
+
     public StandardOpProcessor() {
-       super(true);
+        super(true);
+        bindingMaker = getBindingMaker();
     }
 
     @Override
@@ -73,16 +77,42 @@ public class StandardOpProcessor extends AbstractEvalOpProcessor {
     }
 
     private void evalOp(final Context context) throws OpProcessorException {
-        final RequestMessage msg = context.getRequestMessage();
+        if (logger.isDebugEnabled()) {
+            final RequestMessage msg = context.getRequestMessage();
+            logger.debug("Sessionless request {} for eval in thread {}", msg.getRequestId(), Thread.currentThread().getName());
+        }
 
-        logger.debug("Sessionless request {} for eval in thread {}", msg.getRequestId(), Thread.currentThread().getName());
+        evalOpInternal(context, context::getGremlinExecutor, bindingMaker.apply(context));
+    }
 
-        super.evalOpInternal(context, context::getGremlinExecutor, () -> {
+    /**
+     * A useful method for those extending this class, where the means for binding construction can be supplied
+     * to this class.  This function is used in {@link #evalOp(Context)} to create the final argument to
+     * {@link super#evalOpInternal(Context, Supplier, BindingSupplier)}. In this way an extending class can use
+     * the default {@link BindingSupplier} which carries a lot of re-usable functionality or provide a new one to
+     * override the existing approach.
+     */
+    protected Function<Context, BindingSupplier> getBindingMaker() {
+        return context -> () -> {
+            final RequestMessage msg = context.getRequestMessage();
             final Bindings bindings = new SimpleBindings();
 
-            // rebind any global bindings to a different variable.
-            if (msg.getArgs().containsKey(Tokens.ARGS_REBINDINGS)) {
-                final Map<String, String> rebinds = (Map<String, String>) msg.getArgs().get(Tokens.ARGS_REBINDINGS);
+            // don't allow both rebindings and aliases parameters as they are the same thing. aliases were introduced
+            // as of 3.1.0 as a replacement for rebindings. this check can be removed when rebindings are completely
+            // removed from the protocol
+            final boolean hasRebindings = msg.getArgs().containsKey(Tokens.ARGS_REBINDINGS);
+            final boolean hasAliases = msg.getArgs().containsKey(Tokens.ARGS_ALIASES);
+            if (hasRebindings && hasAliases) {
+                final String error = "Prefer use of the 'aliases' parameter over 'rebindings' and do not use both";
+                throw new OpProcessorException(error, ResponseMessage.build(msg)
+                        .code(ResponseStatusCode.REQUEST_ERROR_INVALID_REQUEST_ARGUMENTS).result(error).create());
+            }
+
+            final String rebindingOrAliasParameter = hasRebindings ? Tokens.ARGS_REBINDINGS : Tokens.ARGS_ALIASES;
+
+            // alias any global bindings to a different variable.
+            if (msg.getArgs().containsKey(rebindingOrAliasParameter)) {
+                final Map<String, String> rebinds = (Map<String, String>) msg.getArgs().get(rebindingOrAliasParameter);
                 for (Map.Entry<String,String> kv : rebinds.entrySet()) {
                     boolean found = false;
                     final Map<String, Graph> graphs = context.getGraphManager().getGraphs();
@@ -100,9 +130,10 @@ public class StandardOpProcessor extends AbstractEvalOpProcessor {
                     }
 
                     if (!found) {
-                        final String error = String.format("Could not rebind [%s] to [%s] as [%s] not in the Graph or TraversalSource global bindings",
+                        final String error = String.format("Could not alias [%s] to [%s] as [%s] not in the Graph or TraversalSource global bindings",
                                 kv.getKey(), kv.getValue(), kv.getValue());
-                        throw new OpProcessorException(error, ResponseMessage.build(msg).code(ResponseStatusCode.REQUEST_ERROR_INVALID_REQUEST_ARGUMENTS).result(error).create());
+                        throw new OpProcessorException(error, ResponseMessage.build(msg)
+                                .code(ResponseStatusCode.REQUEST_ERROR_INVALID_REQUEST_ARGUMENTS).result(error).create());
                     }
                 }
             }
@@ -110,6 +141,6 @@ public class StandardOpProcessor extends AbstractEvalOpProcessor {
             // add any bindings to override any other supplied
             Optional.ofNullable((Map<String, Object>) msg.getArgs().get(Tokens.ARGS_BINDINGS)).ifPresent(bindings::putAll);
             return bindings;
-        });
+        };
     }
 }

@@ -438,6 +438,33 @@ submitting `:> graph` will return a `Graph` instance and in most cases those are
 and will return a serialization error.  It should be noted that `TinkerGraph`, as a convenience for shipping around
 small sub-graphs, is serializable from Gremlin Server.
 
+The Gremlin Server `:remote` command has the following configuration options:
+
+[width="100%",cols="3,10a",options="header"]
+|=========================================================
+|Command |Description
+|alias |
+[width="100%",cols="3,10",options="header"]
+!=========================================================
+!Option !Description
+! _pairs_ !A set of key/value alias/binding pairs to apply to requests.
+!`reset` !Clears any aliases that were supplied in previous configurations of the remote.
+!`show` !Shows the current set of aliases which is returned as a `Map`
+!=========================================================
+|timeout |Specifies the length of time in milliseconds that the remote will wait for a response from the server.
+|=========================================================
+
+The `alias` configuration command for the Gremlin Server `:remote` can be useful in situations where there are
+multiple `Graph` or `TraversalSource` instances on the server, as it becomes possible to rename them from the client
+for purposes of execution within the context of a script.  Therefore, it becomes possible to submit commands this way:
+
+[gremlin-groovy]
+----
+:remote connect tinkerpop.server conf/remote-objects.yaml
+:remote config alias x g
+:> x.E().label().groupCount()
+----
+
 Connecting via Java
 ~~~~~~~~~~~~~~~~~~~
 
@@ -491,8 +518,8 @@ In this case, they are streamed from the server as they arrive.
 <5> Parameterized request are considered the most efficient way to send Gremlin to the server as they can be cached,
 which will boost performance and reduce resources required on the server.
 
-Rebinding
-^^^^^^^^^
+Aliases
+^^^^^^^
 
 Scripts submitted to Gremlin Server automatically have the globally configured `Graph` and `TraversalSource` instances
 made available to them.  Therefore, if Gremlin Server configures two `TraversalSource` instances called "g1" and "g2"
@@ -505,15 +532,15 @@ client.submit("g2.V()")
 While this is an acceptable way to submit scripts, it has the downside of forcing the client to encode the server-side
 variable name directly into the script being sent.  If the server configuration ever changed such that "g1" became
 "g100", the client-side code might have to see a significant amount of change.  Decoupling the script code from the
-server configuration can be managed by the `rebind` method on `Client` as follows:
+server configuration can be managed by the `alias` method on `Client` as follows:
 
 [source,java]
-Client g1Client = client.rebind("g1")
-Client g2Client = client.rebind("g2")
+Client g1Client = client.alias("g1")
+Client g2Client = client.alias("g2")
 g1Client.submit("g.V()")
 g2Client.submit("g.V()")
 
-The above code demonstrates how the `rebind` method can be used such that the script need only contain a reference
+The above code demonstrates how the `alias` method can be used such that the script need only contain a reference
 to "g" and "g1" and "g2" are automatically rebound into "g" on the server-side.
 
 Serialization
@@ -691,7 +718,7 @@ The following table describes the various configuration options that Gremlin Ser
 |scriptEngines.<name>.staticImports |A comma separated list of "static" imports to make available to the `ScriptEngine`. |_none_
 |scriptEngines.<name>.scripts |A comma separated list of script files to execute on `ScriptEngine` initialization. `Graph` and `TraversalSource` instance references produced from scripts will be stored globally in Gremlin Server, therefore it is possible to use initialization scripts to add Traversal Strategies or create entirely new `Graph` instances all together. Instantiating a `LifeCycleHook` in a script provides a way to execute scripts when Gremlin Server starts and stops.|_none_
 |scriptEngines.<name>.config |A `Map` of configuration settings for the `ScriptEngine`.  These settings are dependent on the `ScriptEngine` implementation being used. |_none_
-|scriptEvaluationTimeout |The amount of time in milliseconds before a script evaluation times out. The notion of "script evaluation" refers to the time it takes for the `ScriptEngine` to do its work and *not* any additional time it takes for the result of the evaluation to be iterated and serialized. |30000
+|scriptEvaluationTimeout |The amount of time in milliseconds before a script evaluation times out. The notion of "script evaluation" refers to the time it takes for the `ScriptEngine` to do its work and *not* any additional time it takes for the result of the evaluation to be iterated and serialized. This feature can be turned off by setting the value to `0`. |30000
 |serializers |A `List` of `Map` settings, where each `Map` represents a `MessageSerializer` implementation to use along with its configuration. |_none_
 |serializers[X].className |The full class name of the `MessageSerializer` implementation. |_none_
 |serializers[X].config |A `Map` containing `MessageSerializer` specific configurations. |_none_
@@ -732,28 +759,13 @@ graph database, which must be provided to it as part of the configuration.
 authentication: {
   className: org.apache.tinkerpop.gremlin.server.auth.SimpleAuthenticator,
   config: {
-    credentialsDb: conf/credential-graph.properties}}
+    credentialsDb: conf/tinkergraph-credentials.properties}}
 
 Quick Start
 +++++++++++
 
 A quick way to get started with the `SimpleAuthenticator` is to use TinkerGraph for the "credentials graph" and the
-"sample" credential graph that is packaged with the server.  Recall that TinkerGraph is an in-memory graph and
-therefore always starts as "empty" when opened by `GraphFactory`.  To allow TinkerGraph to be used in this "getting
-started" capacity, Gremlin Server allows for a TinkerGraph-only configuration option called `credentialsDbLocation`.
-The following snippet comes from the `conf/gremlin-server-secure.yaml` file packaged with the server:
-
-[source,yaml]
-authentication: {
-  className: org.apache.tinkerpop.gremlin.server.auth.SimpleAuthenticator,
-  config: {
-    credentialsDb: conf/tinkergraph-empty.properties,
-    credentialsDbLocation: data/credentials.kryo}}
-
-This added configuration tells Gremlin Server to look for a gryo file at that location containing the data for the
-graph which it loads via standard `io` methods.  The limitation is that this read is only performed at the
-initialization of the server so therefore credentials remain static for the life of the server.  In this case,
-`data/credentials.kryo` contains a single user named "stephen" with the imaginative password of "password".
+"sample" credential graph that is packaged with the server.
 
 [source,text]
 ----
@@ -1303,11 +1315,11 @@ evaluated and is committed when the script completes (or rolled back if an error
 |gremlin |String | *Required* The Gremlin script to evaluate
 |bindings |Map |A map of key/value pairs to apply as variables in the context of the Gremlin script
 |language |String |The flavor used (e.g. `gremlin-groovy`)
-|rebindings |Map |A map of key/value pairs that allow globally bound `Graph` and `TraversalSource` objects to
-be rebound to different variable names for purposes of the current request.  The value represents the name the
+|aliases |Map |A map of key/value pairs that allow globally bound `Graph` and `TraversalSource` objects to
+be aliased to different variable names for purposes of the current request.  The value represents the name the
 global variable and its key represents the new binding name as it will be referenced in the Gremlin query.  For
 example, if the Gremlin Server defines two `TraversalSource` instances named `g1` and `g2`, it would be possible
-to send a `rebinding` pair with key of "g" and value of "g2" and thus allow the script to refer to "g2" simply as "g".
+to send an alias pair with key of "g" and value of "g2" and thus allow the script to refer to "g2" simply as "g".
 |=========================================================
 
 Session OpProcessor
@@ -1504,6 +1516,12 @@ Master drop down, and right click `Master Server > Start` which starts the Graph
 default accepts requests at `http://localhost:8080/workspace0`:
 
 image::gephi-start-server.png[width=800]
+
+IMPORTANT: The Gephi Streaming Plugin doesn't detect port conflicts and will appear to start the plugin successfully
+even if there is something already active on that port it wants to connect to (which is 8080 by default).  Be sure
+that there is nothing running on the port before Gephi will be using before starting the plugin.  Failing to do
+this produce behavior where the console will appear to submit requests to Gephi successfully but nothing will
+render.
 
 Start the xref:gremlin-console[Gremlin Console] and activate the Gephi plugin:
 

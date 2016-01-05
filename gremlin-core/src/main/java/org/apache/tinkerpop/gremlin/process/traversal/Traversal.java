@@ -23,9 +23,11 @@ import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
 import org.apache.tinkerpop.gremlin.process.traversal.engine.ComputerTraversalEngine;
 import org.apache.tinkerpop.gremlin.process.traversal.engine.StandardTraversalEngine;
 import org.apache.tinkerpop.gremlin.process.traversal.step.TraversalParent;
+import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.ProfileStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.BulkSet;
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.EmptyStep;
 import org.apache.tinkerpop.gremlin.process.traversal.traverser.TraverserRequirement;
+import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalExplanation;
 import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalHelper;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 
@@ -168,6 +170,26 @@ public interface Traversal<S, E> extends Iterator<E>, Serializable, Cloneable {
         } catch (final NoSuchElementException ignored) {
         }
         return (Traversal<A, B>) this;
+    }
+
+    /**
+     * Profile the traversal.
+     *
+     * @return the updated traversal with respective {@link ProfileStep}.
+     */
+    public default Traversal<S, E> profile() {
+        return this.asAdmin().addStep(new ProfileStep<>(this.asAdmin()));
+    }
+
+    /**
+     * Return a {@link TraversalExplanation} that shows how this traversal will mutate with each applied {@link TraversalStrategy}.
+     *
+     * @return a traversal explanation
+     */
+    public default TraversalExplanation explain() {
+        if (this.asAdmin().isLocked())
+            throw new IllegalStateException("The traversal is locked and can not be explained on a strategy-by-strategy basis");
+        return new TraversalExplanation(this.asAdmin());
     }
 
     /**

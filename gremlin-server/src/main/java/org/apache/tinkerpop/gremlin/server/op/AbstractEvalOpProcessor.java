@@ -59,7 +59,7 @@ import static com.codahale.metrics.MetricRegistry.name;
  */
 public abstract class AbstractEvalOpProcessor implements OpProcessor {
     private static final Logger logger = LoggerFactory.getLogger(AbstractEvalOpProcessor.class);
-    private static final Timer evalOpTimer = MetricManager.INSTANCE.getTimer(name(GremlinServer.class, "op", "eval"));
+    public static final Timer evalOpTimer = MetricManager.INSTANCE.getTimer(name(GremlinServer.class, "op", "eval"));
 
     /**
      * This may or may not be the full set of invalid binding keys.  It is dependent on the static imports made to
@@ -142,7 +142,7 @@ public abstract class AbstractEvalOpProcessor implements OpProcessor {
      *                         {@link GremlinExecutor#eval} method.
      */
     protected void evalOpInternal(final Context context, final Supplier<GremlinExecutor> gremlinExecutorSupplier,
-                              final BindingSupplier<Bindings> bindingsSupplier) throws OpProcessorException {
+                              final BindingSupplier bindingsSupplier) throws OpProcessorException {
         final Timer.Context timerContext = evalOpTimer.time();
         final ChannelHandlerContext ctx = context.getChannelHandlerContext();
         final RequestMessage msg = context.getRequestMessage();
@@ -279,7 +279,7 @@ public abstract class AbstractEvalOpProcessor implements OpProcessor {
     }
 
     @FunctionalInterface
-    public interface BindingSupplier<T> {
-        public T get() throws OpProcessorException;
+    public interface BindingSupplier {
+        public Bindings get() throws OpProcessorException;
     }
 }

@@ -23,6 +23,7 @@ import java.io.File;
 import org.apache.commons.io.FileUtils;
 import org.apache.tinkerpop.gremlin.groovy.plugin.Artifact;
 import org.junit.AfterClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -41,7 +42,8 @@ public class DependencyGrabberTest {
     }
 
     @Test
-    public void should0_InstallAndUninstallDependencies() {
+    @Ignore
+    public void shouldInstallAndUninstallDependencies() {
         final String pkg = "org.apache.tinkerpop";
         final String name = "tinkergraph-gremlin";
         final String ver = "3.0.1-incubating";
@@ -58,7 +60,8 @@ public class DependencyGrabberTest {
     }
 
     @Test(expected=IllegalStateException.class)
-    public void should1_ThrowIllegalStateException() {
+    @Ignore
+    public void shouldThrowIllegalStateException() {
         final String pkg = "org.apache.tinkerpop";
         final String name = "gremlin-groovy";
         final String ver = "3.0.1-incubating";
@@ -81,7 +84,8 @@ public class DependencyGrabberTest {
     }
 
     @Test(expected=RuntimeException.class)
-    public void should2_ThrowRuntimeException() {
+    @Ignore
+    public void shouldThrowRuntimeException() {
         final String pkg = "org.apache.tinkerpop";
         final String name = "gremlin-bogus";
         final String ver = "3.0.1-incubating";
