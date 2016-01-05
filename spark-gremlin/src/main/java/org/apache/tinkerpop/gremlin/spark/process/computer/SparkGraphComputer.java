@@ -33,6 +33,7 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.launcher.SparkLauncher;
 import org.apache.tinkerpop.gremlin.hadoop.Constants;
 import org.apache.tinkerpop.gremlin.hadoop.process.computer.AbstractHadoopGraphComputer;
+import org.apache.tinkerpop.gremlin.hadoop.process.computer.util.ComputerSubmissionHelper;
 import org.apache.tinkerpop.gremlin.hadoop.structure.HadoopConfiguration;
 import org.apache.tinkerpop.gremlin.hadoop.structure.HadoopGraph;
 import org.apache.tinkerpop.gremlin.hadoop.structure.io.VertexWritable;
@@ -45,15 +46,18 @@ import org.apache.tinkerpop.gremlin.process.computer.VertexProgram;
 import org.apache.tinkerpop.gremlin.process.computer.util.DefaultComputerResult;
 import org.apache.tinkerpop.gremlin.process.computer.util.MapMemory;
 import org.apache.tinkerpop.gremlin.spark.process.computer.payload.ViewIncomingPayload;
+import org.apache.tinkerpop.gremlin.spark.structure.Spark;
 import org.apache.tinkerpop.gremlin.spark.structure.io.InputFormatRDD;
 import org.apache.tinkerpop.gremlin.spark.structure.io.InputOutputHelper;
 import org.apache.tinkerpop.gremlin.spark.structure.io.InputRDD;
 import org.apache.tinkerpop.gremlin.spark.structure.io.OutputFormatRDD;
 import org.apache.tinkerpop.gremlin.spark.structure.io.OutputRDD;
+import org.apache.tinkerpop.gremlin.spark.structure.io.PersistedOutputRDD;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.stream.Stream;
 
@@ -63,6 +67,7 @@ import java.util.stream.Stream;
 public final class SparkGraphComputer extends AbstractHadoopGraphComputer {
 
     private final org.apache.commons.configuration.Configuration sparkConfiguration;
+    private boolean workersSet = false;
 
     public SparkGraphComputer(final HadoopGraph hadoopGraph) {
         super(hadoopGraph);
@@ -76,6 +81,7 @@ public final class SparkGraphComputer extends AbstractHadoopGraphComputer {
         if (this.sparkConfiguration.getString(SparkLauncher.SPARK_MASTER).startsWith("local")) {
             this.sparkConfiguration.setProperty(SparkLauncher.SPARK_MASTER, "local[" + this.workers + "]");
         }
+        this.workersSet = true;
         return this;
     }
 
@@ -97,6 +103,11 @@ public final class SparkGraphComputer extends AbstractHadoopGraphComputer {
     @Override
     public Future<ComputerResult> submit() {
         this.validateStatePriorToExecution();
+
+        return ComputerSubmissionHelper.runWithBackgroundThread(this::submitWithExecutor, "SparkSubmitter");
+    }
+
+    private Future<ComputerResult> submitWithExecutor(Executor exec) {
         // apache and hadoop configurations that are used throughout the graph computer computation
         final org.apache.commons.configuration.Configuration apacheConfiguration = new HadoopConfiguration(this.sparkConfiguration);
         apacheConfiguration.setProperty(Constants.GREMLIN_HADOOP_GRAPH_OUTPUT_FORMAT_HAS_EDGES, this.persist.equals(GraphComputer.Persist.EDGES));
@@ -132,20 +143,21 @@ public final class SparkGraphComputer extends AbstractHadoopGraphComputer {
             // create the spark configuration from the graph computer configuration
             hadoopConfiguration.forEach(entry -> sparkConfiguration.set(entry.getKey(), entry.getValue()));
             // execute the vertex program and map reducers and if there is a failure, auto-close the spark context
-            JavaSparkContext sparkContext = null;
             try {
-                sparkContext = new JavaSparkContext(SparkContext.getOrCreate(sparkConfiguration));
+                final JavaSparkContext sparkContext = new JavaSparkContext(SparkContext.getOrCreate(sparkConfiguration));
+                Spark.create(sparkContext.sc()); // this is the context RDD holder that prevents GC
                 updateLocalConfiguration(sparkContext, sparkConfiguration);
                 // add the project jars to the cluster
                 this.loadJars(sparkContext, hadoopConfiguration);
                 // create a message-passing friendly rdd from the input rdd
-                final JavaPairRDD<Object, VertexWritable> graphRDD;
+                JavaPairRDD<Object, VertexWritable> graphRDD;
                 try {
                     graphRDD = hadoopConfiguration.getClass(Constants.GREMLIN_SPARK_GRAPH_INPUT_RDD, InputFormatRDD.class, InputRDD.class)
                             .newInstance()
-                            .readGraphRDD(apacheConfiguration, sparkContext)
-                            .setName(sparkConfiguration.get(Constants.GREMLIN_HADOOP_OUTPUT_LOCATION, "graphRDD"))
-                            .cache();
+                            .readGraphRDD(apacheConfiguration, sparkContext);
+                    if (this.workersSet && graphRDD.partitions().size() > this.workers) // ensures that the graphRDD does not have more partitions than workers
+                        graphRDD = graphRDD.coalesce(this.workers);
+                    graphRDD = graphRDD.cache();
                 } catch (final InstantiationException | IllegalAccessException e) {
                     throw new IllegalStateException(e.getMessage(), e);
                 }
@@ -177,6 +189,8 @@ public final class SparkGraphComputer extends AbstractHadoopGraphComputer {
                         }
                     }
                     // write the graph rdd using the output rdd
+                    final String[] elementComputeKeys = this.vertexProgram == null ? new String[0] : this.vertexProgram.getElementComputeKeys().toArray(new String[this.vertexProgram.getElementComputeKeys().size()]);
+                    graphRDD = SparkExecutor.prepareFinalGraphRDD(graphRDD, viewIncomingRDD, elementComputeKeys);
                     if ((hadoopConfiguration.get(Constants.GREMLIN_HADOOP_GRAPH_OUTPUT_FORMAT, null) != null ||
                             hadoopConfiguration.get(Constants.GREMLIN_SPARK_GRAPH_OUTPUT_RDD, null) != null) &&
                             !this.persist.equals(GraphComputer.Persist.NOTHING)) {
@@ -196,17 +210,19 @@ public final class SparkGraphComputer extends AbstractHadoopGraphComputer {
                 // process the map reducers //
                 //////////////////////////////
                 if (!this.mapReducers.isEmpty()) {
-                    final String[] elementComputeKeys = this.vertexProgram == null ? new String[0] : this.vertexProgram.getElementComputeKeys().toArray(new String[this.vertexProgram.getElementComputeKeys().size()]);
-                    final JavaPairRDD<Object, VertexWritable> mapReduceGraphRDD = SparkExecutor.prepareGraphRDDForMapReduce(graphRDD, viewIncomingRDD, elementComputeKeys).setName("mapReduceGraphRDD").cache();
+                    final JavaPairRDD<Object, VertexWritable> mapReduceGraphRDD = graphRDD.mapValues(vertexWritable -> {
+                        vertexWritable.get().dropEdges();
+                        return vertexWritable;
+                    }).cache();  // drop all the edges of the graph as they are not used in mapReduce processing
                     for (final MapReduce mapReduce : this.mapReducers) {
                         // execute the map reduce job
                         final HadoopConfiguration newApacheConfiguration = new HadoopConfiguration(apacheConfiguration);
                         mapReduce.storeState(newApacheConfiguration);
                         // map
-                        final JavaPairRDD mapRDD = SparkExecutor.executeMap((JavaPairRDD) mapReduceGraphRDD, mapReduce, newApacheConfiguration).setName("mapRDD");
+                        final JavaPairRDD mapRDD = SparkExecutor.executeMap((JavaPairRDD) mapReduceGraphRDD, mapReduce, newApacheConfiguration);
                         // combine TODO: is this really needed?
                         // reduce
-                        final JavaPairRDD reduceRDD = (mapReduce.doStage(MapReduce.Stage.REDUCE)) ? SparkExecutor.executeReduce(mapRDD, mapReduce, newApacheConfiguration).setName("reduceRDD") : null;
+                        final JavaPairRDD reduceRDD = (mapReduce.doStage(MapReduce.Stage.REDUCE)) ? SparkExecutor.executeReduce(mapRDD, mapReduce, newApacheConfiguration) : null;
                         // write the map reduce output back to disk (memory)
                         SparkExecutor.saveMapReduceRDD(null == reduceRDD ? mapRDD : reduceRDD, mapReduce, finalMemory, hadoopConfiguration);
                     }
@@ -214,17 +230,18 @@ public final class SparkGraphComputer extends AbstractHadoopGraphComputer {
                 }
 
                 // unpersist the graphRDD if it will no longer be used
-                if (hadoopConfiguration.get(Constants.GREMLIN_SPARK_GRAPH_OUTPUT_RDD, null) == null || this.persist.equals(GraphComputer.Persist.NOTHING)) {
+                if (!PersistedOutputRDD.class.equals(hadoopConfiguration.getClass(Constants.GREMLIN_SPARK_GRAPH_OUTPUT_RDD, null)) || this.persist.equals(GraphComputer.Persist.NOTHING)) {
                     graphRDD.unpersist();
+                    Spark.removeRDD(hadoopConfiguration.get(Constants.GREMLIN_HADOOP_OUTPUT_LOCATION)); // delete persisted output rdd if it exists
                 }
                 // update runtime and return the newly computed graph
                 finalMemory.setRuntime(System.currentTimeMillis() - startTime);
                 return new DefaultComputerResult(InputOutputHelper.getOutputGraph(apacheConfiguration, this.resultGraph, this.persist), finalMemory.asImmutable());
             } finally {
-                if (sparkContext != null && !apacheConfiguration.getBoolean(Constants.GREMLIN_SPARK_PERSIST_CONTEXT, false))
-                    sparkContext.stop();
+                if (!apacheConfiguration.getBoolean(Constants.GREMLIN_SPARK_PERSIST_CONTEXT, false))
+                    Spark.close();
             }
-        });
+        }, exec);
     }
 
     /////////////////
@@ -239,7 +256,7 @@ public final class SparkGraphComputer extends AbstractHadoopGraphComputer {
                 for (final String path : paths) {
                     final File file = new File(path);
                     if (file.exists())
-                        Stream.of(file.listFiles()).filter(f -> f.getName().endsWith(Constants.DOT_JAR)).forEach(f -> sparkContext.addJar(f.getAbsolutePath()));
+                        Stream.of(file.listFiles()).filter(f -> f.getName().contains(Constants.DOT_JAR)).forEach(f -> sparkContext.addJar(f.getAbsolutePath()));
                     else
                         this.logger.warn(path + " does not reference a valid directory -- proceeding regardless");
                 }
@@ -261,14 +278,14 @@ public final class SparkGraphComputer extends AbstractHadoopGraphComputer {
          * Execution rather than applying the entire configuration.
          */
         final String[] validPropertyNames = {
-            "spark.job.description",
-            "spark.jobGroup.id",
-            "spark.job.interruptOnCancel",
-            "spark.scheduler.pool"
+                "spark.job.description",
+                "spark.jobGroup.id",
+                "spark.job.interruptOnCancel",
+                "spark.scheduler.pool"
         };
 
-        for (String propertyName: validPropertyNames){
-            if (sparkConfiguration.contains(propertyName)){
+        for (String propertyName : validPropertyNames) {
+            if (sparkConfiguration.contains(propertyName)) {
                 String propertyValue = sparkConfiguration.get(propertyName);
                 this.logger.info("Setting Thread Local SparkContext Property - "
                         + propertyName + " : " + propertyValue);

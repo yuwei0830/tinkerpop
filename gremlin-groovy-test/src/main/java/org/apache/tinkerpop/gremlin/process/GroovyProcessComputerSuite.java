@@ -24,7 +24,8 @@ import org.apache.tinkerpop.gremlin.groovy.loaders.SugarLoader;
 import org.apache.tinkerpop.gremlin.groovy.util.SugarTestHelper;
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer;
 import org.apache.tinkerpop.gremlin.process.computer.bulkloading.BulkLoaderVertexProgramTest;
-import org.apache.tinkerpop.gremlin.process.computer.ranking.PageRankVertexProgramTest;
+import org.apache.tinkerpop.gremlin.process.computer.clustering.peerpressure.PeerPressureVertexProgramTest;
+import org.apache.tinkerpop.gremlin.process.computer.ranking.pagerank.PageRankVertexProgramTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.branch.GroovyBranchTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.branch.GroovyChooseTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.branch.GroovyLocalTest;
@@ -47,6 +48,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.map.GroovyAddEdgeTest
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GroovyCoalesceTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GroovyConstantTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GroovyCountTest;
+import org.apache.tinkerpop.gremlin.process.traversal.step.map.GroovyFlatMapTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GroovyFoldTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GroovyGraphTest;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GroovyLoopsTest;
@@ -128,6 +130,7 @@ public class GroovyProcessComputerSuite extends ProcessComputerSuite {
             GroovyCoalesceTest.Traversals.class,
             GroovyConstantTest.Traversals.class,
             GroovyCountTest.Traversals.class,
+            GroovyFlatMapTest.Traversals.class,
             GroovyFoldTest.Traversals.class,
             GroovyGraphTest.Traversals.class,
             GroovyLoopsTest.Traversals.class,
@@ -166,6 +169,7 @@ public class GroovyProcessComputerSuite extends ProcessComputerSuite {
 
             // algorithms
             PageRankVertexProgramTest.class,
+            PeerPressureVertexProgramTest.class,
             BulkLoaderVertexProgramTest.class,
     };
 

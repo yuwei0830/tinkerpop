@@ -23,13 +23,9 @@ import org.apache.commons.configuration.Configuration;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.rdd.RDD;
 import org.apache.tinkerpop.gremlin.hadoop.Constants;
 import org.apache.tinkerpop.gremlin.hadoop.structure.io.VertexWritable;
-import scala.Tuple2;
-import scala.collection.Iterator;
-
-import java.util.Optional;
+import org.apache.tinkerpop.gremlin.spark.structure.Spark;
 
 /**
  * @author Marko A. Rodriguez (http://markorodriguez.com)
@@ -41,20 +37,7 @@ public final class PersistedInputRDD implements InputRDD {
         final String inputRDDName = configuration.getString(Constants.GREMLIN_HADOOP_INPUT_LOCATION, null);
         if (null == inputRDDName)
             throw new IllegalArgumentException(PersistedInputRDD.class.getSimpleName() + " requires " + Constants.GREMLIN_HADOOP_INPUT_LOCATION + " in order to retrieve the named graphRDD from the SparkContext");
-        if (!PersistedInputRDD.getPersistedRDD(sparkContext, inputRDDName).isPresent())
-            throw new IllegalArgumentException("The provided graphRDD name is not in the persisted RDDs of the SparkContext: " + inputRDDName);
-        return JavaPairRDD.fromJavaRDD((JavaRDD) PersistedInputRDD.getPersistedRDD(sparkContext, inputRDDName).get().toJavaRDD());
-    }
-
-    public static Optional<RDD<?>> getPersistedRDD(final JavaSparkContext sparkContext, final String rddName) {
-        final Iterator<Tuple2<Object, RDD<?>>> iterator = JavaSparkContext.toSparkContext(sparkContext).
-                getPersistentRDDs().
-                toList().iterator();
-        while (iterator.hasNext()) {
-            final Tuple2<Object, RDD<?>> tuple2 = iterator.next();
-            if (tuple2._2().toString().contains(rddName))
-                return Optional.of(tuple2._2());
-        }
-        return Optional.empty();
+        Spark.create(sparkContext.sc());
+        return JavaPairRDD.fromJavaRDD((JavaRDD) Spark.getRDD(inputRDDName).toJavaRDD());
     }
 }

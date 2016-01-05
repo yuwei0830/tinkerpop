@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -50,7 +51,7 @@ public class SimpleAuthenticator implements Authenticator {
 
     /**
      * @deprecated As of release 3.1.1-incubating, if using TinkerGraph, simply rely on it's "persistence" features.
-     * @see <a href="https://issues.apache.org/jira/browse/TINKERPOP3-981">TINKERPOP3-981</a>
+     * @see <a href="https://issues.apache.org/jira/browse/TINKERPOP-981">TINKERPOP-981</a>
      */
     @Deprecated
     public static final String CONFIG_CREDENTIALS_LOCATION = "credentialsDbLocation";
@@ -104,8 +105,16 @@ public class SimpleAuthenticator implements Authenticator {
         logger.info("CredentialGraph initialized at {}", credentialStore);
     }
 
+    /**
+     * @deprecated As of release 3.1.1-incubating, replaced by {@link #newSaslNegotiator(InetAddress)}.
+     * @see <a href="https://issues.apache.org/jira/browse/TINKERPOP-995">TINKERPOP-995</a>
+     */
     @Override
+    @Deprecated
     public SaslNegotiator newSaslNegotiator() {
+        // While this method is deprecated, it remains here to ensure backward compatibility with the old method. In
+        // this way the integration tests can continue to execute here
+        // todo: remove this method on a future version and implement the new one
         return new PlainTextSaslAuthenticator();
     }
 

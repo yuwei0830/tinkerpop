@@ -19,22 +19,30 @@
 package org.apache.tinkerpop.gremlin.groovy.jsr223;
 
 import groovy.lang.Closure;
+import org.apache.tinkerpop.gremlin.groovy.CompilerCustomizerProvider;
 import org.apache.tinkerpop.gremlin.groovy.NoImportCustomizerProvider;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.script.Bindings;
 import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 import javax.script.SimpleBindings;
+import java.awt.*;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -46,6 +54,7 @@ import static org.junit.Assert.fail;
  * @author Stephen Mallette (http://stephen.genoprime.com)
  */
 public class GremlinGroovyScriptEngineTest {
+    private static final Logger logger = LoggerFactory.getLogger(GremlinGroovyScriptEngineTest.class);
 
     @Test
     public void shouldCompileScriptWithoutRequiringVariableBindings() throws Exception {
@@ -98,7 +107,7 @@ public class GremlinGroovyScriptEngineTest {
 
     @Test
     public void shouldLoadImportsViaDependencyManagerInterface() throws Exception {
-        final GremlinGroovyScriptEngine engine = new GremlinGroovyScriptEngine(NoImportCustomizerProvider.INSTANCE);
+        final GremlinGroovyScriptEngine engine = new GremlinGroovyScriptEngine((CompilerCustomizerProvider) NoImportCustomizerProvider.INSTANCE);
         try {
             engine.eval("Vertex.class.getName()");
             fail("Should have thrown an exception because no imports were supplied");
@@ -112,7 +121,7 @@ public class GremlinGroovyScriptEngineTest {
 
     @Test
     public void shouldLoadImportsViaDependencyManagerInterfaceAdditively() throws Exception {
-        final GremlinGroovyScriptEngine engine = new GremlinGroovyScriptEngine(NoImportCustomizerProvider.INSTANCE);
+        final GremlinGroovyScriptEngine engine = new GremlinGroovyScriptEngine((CompilerCustomizerProvider) NoImportCustomizerProvider.INSTANCE);
         try {
             engine.eval("Vertex.class.getName()");
             fail("Should have thrown an exception because no imports were supplied");
@@ -144,7 +153,7 @@ public class GremlinGroovyScriptEngineTest {
 
     @Test
     public void shouldLoadImportsViaDependencyManagerFromDependencyGatheredByUse() throws Exception {
-        final GremlinGroovyScriptEngine engine = new GremlinGroovyScriptEngine(NoImportCustomizerProvider.INSTANCE);
+        final GremlinGroovyScriptEngine engine = new GremlinGroovyScriptEngine((CompilerCustomizerProvider) NoImportCustomizerProvider.INSTANCE);
         try {
             engine.eval("org.apache.commons.math3.util.FastMath.abs(-1235)");
             fail("Should have thrown an exception because no imports were supplied");
@@ -159,7 +168,7 @@ public class GremlinGroovyScriptEngineTest {
 
     @Test
     public void shouldAllowsUseToBeExecutedAfterImport() throws Exception {
-        final GremlinGroovyScriptEngine engine = new GremlinGroovyScriptEngine(NoImportCustomizerProvider.INSTANCE);
+        final GremlinGroovyScriptEngine engine = new GremlinGroovyScriptEngine((CompilerCustomizerProvider) NoImportCustomizerProvider.INSTANCE);
         try {
             engine.eval("org.apache.commons.math3.util.FastMath.abs(-1235)");
             fail("Should have thrown an exception because no imports were supplied");
@@ -170,6 +179,31 @@ public class GremlinGroovyScriptEngineTest {
         engine.use("org.apache.commons", "commons-math3", "3.2");
         engine.addImports(new HashSet<>(Arrays.asList("import org.apache.commons.math3.util.FastMath")));
         assertEquals(1235, engine.eval("org.apache.commons.math3.util.FastMath.abs(-1235)"));
+    }
+
+    @Test
+    public void shouldAllowsMultipleImports() throws Exception {
+        final GremlinGroovyScriptEngine engine = new GremlinGroovyScriptEngine((CompilerCustomizerProvider) NoImportCustomizerProvider.INSTANCE);
+        try {
+            engine.eval("Color.RED");
+            fail("Should have thrown an exception because no imports were supplied");
+        } catch (Exception se) {
+            assertTrue(se instanceof ScriptException);
+        }
+
+        try {
+            engine.eval("SystemColor.ACTIVE_CAPTION");
+            fail("Should have thrown an exception because no imports were supplied");
+        } catch (Exception se) {
+            assertTrue(se instanceof ScriptException);
+        }
+
+        engine.addImports(new HashSet<>(Arrays.asList("import java.awt.Color")));
+        assertEquals(Color.RED, engine.eval("Color.RED"));
+
+        engine.addImports(new HashSet<>(Arrays.asList("import java.awt.SystemColor")));
+        assertEquals(Color.RED, engine.eval("Color.RED"));
+        assertEquals(SystemColor.ACTIVE_CAPTION, engine.eval("SystemColor.ACTIVE_CAPTION"));
     }
 
     @Test
@@ -203,51 +237,56 @@ public class GremlinGroovyScriptEngineTest {
     @Test
     public void shouldReloadClassLoaderWhileDoingEvalInSeparateThread() throws Exception {
         final AtomicBoolean fail = new AtomicBoolean(false);
+        final AtomicInteger counter = new AtomicInteger(0);
         final CountDownLatch latch = new CountDownLatch(1);
-        final GremlinGroovyScriptEngine scriptEngine = new GremlinGroovyScriptEngine();
-        final Thread t = new Thread(() -> {
-            try {
-                final Object o = scriptEngine.eval("Color.BLACK");
-                System.out.println("Should not print: " + o);
-                fail.set(true);
-            } catch (ScriptException se) {
-                // should get here as Color.BLACK is not imported yet.
-                System.out.println("Failed to execute Color.BLACK as expected.");
-            }
+        final AtomicReference<Color> color = new AtomicReference<>(Color.RED);
 
+        final GremlinGroovyScriptEngine scriptEngine = new GremlinGroovyScriptEngine();
+
+        try {
+            scriptEngine.eval("Color.BLACK");
+            fail("Should fail as class is not yet imported");
+        } catch (ScriptException se) {
+            // should get here as Color.BLACK is not imported yet.
+            logger.info("Failed to execute Color.BLACK as expected.");
+        }
+
+        final Thread evalThread = new Thread(() -> {
             try {
-                int counter = 0;
+                // execute scripts until the other thread releases this latch (i.e. after import)
                 while (latch.getCount() == 1) {
                     scriptEngine.eval("1+1");
-                    counter++;
+                    counter.incrementAndGet();
                 }
 
-                System.out.println(counter + " executions.");
-
-                scriptEngine.eval("Color.BLACK");
-                System.out.println("Color.BLACK now evaluates");
+                color.set((Color) scriptEngine.eval("Color.BLACK"));
             } catch (Exception se) {
-                se.printStackTrace();
                 fail.set(true);
             }
         }, "test-reload-classloader-1");
 
-        t.start();
+        evalThread.start();
 
-        // let the first thead execute a bit.
+        // let the first thread execute a bit.
         Thread.sleep(1000);
 
-        new Thread(() -> {
-            System.out.println("Importing java.awt.Color...");
+        final Thread importThread = new Thread(() -> {
+            logger.info("Importing java.awt.Color...");
             final Set<String> imports = new HashSet<String>() {{
                 add("import java.awt.Color");
             }};
             scriptEngine.addImports(imports);
             latch.countDown();
-        }, "test-reload-classloader-2").start();
+        }, "test-reload-classloader-2");
 
-        t.join();
+        importThread.start();
 
+        // block until both threads are done
+        importThread.join();
+        evalThread.join();
+
+        assertEquals(Color.BLACK, color.get());
+        assertThat(counter.get(), greaterThan(0));
         assertFalse(fail.get());
     }
 

@@ -26,12 +26,12 @@ Getting Started
 
 New contributors can start development with TinkerPop by first link:https://help.github.com/articles/fork-a-repo/[forking
 then cloning] the Apache TinkerPop link:https://github.com/apache/incubator-tinkerpop[GitHub repository]. Generally
-speaking it is best to tie any work done to an issue in link:https://issues.apache.org/jira/browse/TINKERPOP3[JIRA].
+speaking it is best to tie any work done to an issue in link:https://issues.apache.org/jira/browse/TINKERPOP[JIRA].
 Either scan through JIRA for an existing open issue to work on or create a new one.
 
 NOTE: For those who are trying to find a place to start to contribute, consider looking at unresolved issues that
 have the "trivial" priority as these issues are specifically set aside as
-link:https://issues.apache.org/jira/issues/?jql=project%20%3D%20TINKERPOP3%20AND%20resolution%20%3D%20Unresolved%20AND%20priority%20%3D%20Trivial%20ORDER%20BY%20key%20DESC[low-hanging fruit]
+link:https://issues.apache.org/jira/issues/?jql=project%20%3D%20TINKERPOP%20AND%20resolution%20%3D%20Unresolved%20AND%20priority%20%3D%20Trivial%20ORDER%20BY%20key%20DESC[low-hanging fruit]
 for newcomers.
 
 After making changes, submit a link:https://help.github.com/articles/using-pull-requests/[pull request] through
@@ -110,6 +110,8 @@ install the link:http://plugins.jetbrains.com/plugin/7442?pr=idea[GMavenPlus Int
 For Committers
 --------------
 
+image::business-gremlin.png[width=400]
+
 The guidelines that follow apply to those with commit access to the main repository:
 
 Communication
@@ -177,7 +179,7 @@ tags, as they produce permanent clutter.
 Issue Tracker Conventions
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-TinkerPop uses Apache JIRA as its link:https://issues.apache.org/jira/browse/TINKERPOP3[issue tracker].  JIRA is a
+TinkerPop uses Apache JIRA as its link:https://issues.apache.org/jira/browse/TINKERPOP[issue tracker].  JIRA is a
 very robust piece of software with many options and configurations.  To simplify usage and ensure consistency across
 issues, the following conventions should be adhered to:
 
@@ -222,7 +224,7 @@ public APIs that might be utilized by users or implemented by vendors:
 ** `@deprecated As of release x.y.z, replaced by {@link SomeOtherClass#someNewMethod()}` - if the method is not
 replaced then the comment can simply read "not replaced".  Additional comments that provide more context are
 encouraged.
-** `@see <a href="https://issues.apache.org/jira/browse/TINKERPOP3-XXX">TINKERPOP3-XXX</a>` - supply a link to the
+** `@see <a href="https://issues.apache.org/jira/browse/TINKERPOP-XXX">TINKERPOP-XXX</a>` - supply a link to the
 JIRA issue for reference.
 * All deprecation should typically be tied to a JIRA issue with a "breaking" label - the issue itself does not need to
 specifically or solely be about "deprecation" but it should be documented very clearly in the comments what was
@@ -236,8 +238,35 @@ call out this fact.
 The JIRA issues that track removal of deprecated methods should be periodically evaluated to determine if it is
 prudent to schedule them into a release.
 
+Developing Tests
+~~~~~~~~~~~~~~~~
+
+TinkerPop has a wide variety of test types that help validate its internal code as well as external provider code.
+There are "unit tests" and "integration tests". Unit tests execute on standard runs of `mvn clean install`.  These
+tests tend to run quickly and provide a reasonable level of coverage and confidence in the code base.  Integration
+tests are disabled by default and must be explicitly turned on with a special build property by adding
+`-DskipIntegrationTests=false` to the `mvn` execution.  Integration tests run slower and may require external
+components to be running when they are executed. They are "marked" as separate from unit tests by inclusion of the
+suffix "IntegrateTest".
+
+Here are some other points to consider when developing tests:
+
+* Avoid use of `println` in tests and prefer use of a SLF4j `Logger` instance so that outputs can be controlled in a
+standard way.
+* If it is necessary to create files on the filesystem, do not hardcode directories - instead, use the `TestHelper` to
+create directory structures.  `TestHelper` will properly create file system structure in the appropriate build
+directory thus allowing proper clean-up between test runs.
+* If writing tests in one of the test suites, like `gremlin-test`, it is important to remember that if a new `Graph`
+instance is constructed within the test manually, that it be closed on exit of that test.  Failing to do this cleanup
+can cause problems for some graph providers.
+* Tests that are designed to use a `GraphProvider` implementation in conjunction with `AbstractGremlinTest` _and_ are
+in the `/test` directory should not be named with `Test` as the suffix, as this will cause them to execute in some
+environments without a `GraphProvider` being initialized by a suite. These types of tests should be suffixed with
+`Check` instead. Please see link:https://github.com/apache/incubator-tinkerpop/blob/e32a4187e4f25e290aabe14007f9087c48a06521/neo4j-gremlin/src/test/java/org/apache/tinkerpop/gremlin/neo4j/structure/NativeNeo4jStructureCheck.java[NativeNeo4jStructureCheck]
+for an example.
+
 Gremlin Language Test Cases
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When writing a test case for a Gremlin step, be sure to use the following conventions.
 
@@ -264,7 +293,7 @@ committer wanting to put code into a release branch.
 
 * Make a JIRA ticket for the software problem you want to solve (i.e. a fix).
 * Fork the release branch that the fix will be put into.
-** The branch name should be the JIRA issue identifier (e.g. `TINKERPOP3-XXX`).
+** The branch name should be the JIRA issue identifier (e.g. `TINKERPOP-XXX`).
 * Develop your fix in your branch.
 * When your fix is complete and ready to merge, issue a link:https://git-scm.com/docs/git-request-pull[pull request].
 ** Be certain that the test suite is passing.
@@ -402,3 +431,14 @@ uploaded to the server and should preserve the directory structure in git as ref
 
 Please see the <<building-testing,Building and Testing>> section for more information on how to generate the
 documentation.
+
+[[logging]]
+Logging
+~~~~~~~
+
+TinkerPop uses SLF4j for logging and typically leans back on Log4j as the implementation. Configuring log outputs
+for debugging purposes within tests can be altered by editing the `log4j-test.properties` file in each module's test
+resources.  That file gets copied to the `target/test-classes` on build and surefire and failsafe plugins in maven
+are then configured to point at that area of the file system for those configuration files. The properties files
+can be edited to fine tune control of the log output, but generally speaking the current configuration is likely
+best for everyone's general purposes, so if changes are made please revert them prior to commit.
