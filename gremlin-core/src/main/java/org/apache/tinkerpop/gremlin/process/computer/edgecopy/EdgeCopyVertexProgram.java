@@ -52,8 +52,9 @@ public class EdgeCopyVertexProgram extends StaticVertexProgram<Edge> {
     private static final Logger LOGGER = LoggerFactory.getLogger(EdgeCopyVertexProgram.class);
 
     public static final String EDGE_COPY_VERTEX_PROGRAM_CFG_PREFIX = "gremlin.edgeCopyVertexProgram";
+    public static final String DIRECTION_CFG_KEY = String.join(".", EDGE_COPY_VERTEX_PROGRAM_CFG_PREFIX, "direction");
 
-    private final Direction direction;
+    private Direction direction;
     private Configuration configuration;
 
     private EdgeCopyVertexProgram() {
@@ -70,6 +71,9 @@ public class EdgeCopyVertexProgram extends StaticVertexProgram<Edge> {
         if (config != null) {
             ConfigurationUtils.copy(config, configuration);
         }
+        if (configuration.containsKey(DIRECTION_CFG_KEY)) {
+            direction = Direction.valueOf(configuration.getString(DIRECTION_CFG_KEY));
+        }
     }
 
     @Override
@@ -85,7 +89,9 @@ public class EdgeCopyVertexProgram extends StaticVertexProgram<Edge> {
             sourceVertex.edges(direction).forEachRemaining(edge -> {
                 final Object inVId = edge.inVertex().id();
                 LOGGER.info("send edge from " + sourceVertex.id() + " to " + edge.inVertex().id());
-                MessageScope messageScope = MessageScope.Local.of(() -> __.<Vertex>start().outE().filter(__.inV().hasId(inVId)));
+                MessageScope messageScope = Direction.OUT.equals(direction)
+                        ? MessageScope.Local.of(() -> __.<Vertex>start().outE().filter(__.inV().hasId(inVId)))
+                        : MessageScope.Local.of(() -> __.<Vertex>start().inE().filter(__.outV().hasId(inVId)));
                 messenger.sendMessage(messageScope, DetachedFactory.detach(edge, true));
             });
         } else if (memory.getIteration() == 1) {
@@ -95,14 +101,12 @@ public class EdgeCopyVertexProgram extends StaticVertexProgram<Edge> {
             final Graph sg = inV.graph();
             while (ei.hasNext()) {
                 final Edge edge = ei.next();
-                if (sourceVertex.id().equals(edge.inVertex().id())) {
-                    LOGGER.info("create edge from " + edge.outVertex().id() + " to " + sourceVertex.id());
-                    final Object outVId = edge.outVertex().id();
-                    final Iterator<Vertex> vi = sg.vertices(outVId);
-                    final Vertex outV = vi.hasNext() ? vi.next() : sg.addVertex(T.id, outVId);
-                    final Edge clonedEdge = outV.addEdge(edge.label(), inV);
-                    edge.properties().forEachRemaining(p -> clonedEdge.property(p.key(), p.value()));
-                }
+                LOGGER.info("create edge from " + edge.outVertex().id() + " to " + sourceVertex.id());
+                final Object outVId = edge.outVertex().id();
+                final Iterator<Vertex> vi = sg.vertices(outVId);
+                final Vertex outV = vi.hasNext() ? vi.next() : sg.addVertex(T.id, outVId);
+                final Edge clonedEdge = outV.addEdge(edge.label(), inV);
+                edge.properties().forEachRemaining(p -> clonedEdge.property(p.key(), p.value()));
             }
         }
     }
@@ -153,6 +157,11 @@ public class EdgeCopyVertexProgram extends StaticVertexProgram<Edge> {
         public EdgeCopyVertexProgram create(final Graph graph) {
             ConfigurationUtils.append(graph.configuration().subset(EDGE_COPY_VERTEX_PROGRAM_CFG_PREFIX), configuration);
             return (EdgeCopyVertexProgram) VertexProgram.createVertexProgram(graph, configuration);
+        }
+
+        public Builder direction(final Direction direction) {
+            configuration.setProperty(DIRECTION_CFG_KEY, direction);
+            return this;
         }
     }
 

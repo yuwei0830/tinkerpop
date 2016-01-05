@@ -42,8 +42,8 @@ import java.io.UnsupportedEncodingException;
  */
 public final class ScriptRecordWriter extends RecordWriter<NullWritable, VertexWritable> {
 
-    protected final static String SCRIPT_FILE = "gremlin.hadoop.scriptOutputFormat.script";
-    protected final static String SCRIPT_ENGINE = "gremlin.hadoop.scriptOutputFormat.scriptEngine";
+    public final static String SCRIPT_FILE = "gremlin.hadoop.scriptOutputFormat.script";
+    //protected final static String SCRIPT_ENGINE = "gremlin.hadoop.scriptOutputFormat.scriptEngine";
     private final static String VERTEX = "vertex";
     private final static String WRITE_CALL = "stringify(" + VERTEX + ")";
     private final static String UTF8 = "UTF-8";
@@ -68,7 +68,7 @@ public final class ScriptRecordWriter extends RecordWriter<NullWritable, VertexW
         try {
             this.engine.eval(new InputStreamReader(fs.open(new Path(configuration.get(SCRIPT_FILE)))));
         } catch (final ScriptException e) {
-            throw new IOException(e.getMessage(),e);
+            throw new IOException(e.getMessage(), e);
         }
     }
 
