@@ -20,21 +20,29 @@
 package org.apache.tinkerpop.gremlin.tinkergraph.g2;
 
 import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
+import org.javatuples.Pair;
+import org.javatuples.Triplet;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.util.Arrays;
+import java.util.LinkedList;
 
 /**
  * @author Marko A. Rodriguez (http://markorodriguez.com)
  */
 public class g2Parser {
 
+    private static final char NO_CHAR = '\u0489';
+
     private char[][] source;
     private int cRow;
     private int cColumn;
     private int numRows;
     private int numCols;
+
+    private LinkedList<Pair<Integer, Integer>> traversalStack = new LinkedList<>();
 
     public g2Parser(final File file) {
         try {
@@ -56,25 +64,27 @@ public class g2Parser {
 
     private void buildCharacterSource(final String source) {
         final String[] lines = source.split("\n");
-        for (final String line : lines) {
+        for (String line : lines) {
+            line = line.replaceAll("\\s+$", "");
             if (line.length() > this.numCols)
                 this.numCols = line.length();
         }
         this.numRows = lines.length;
         this.source = new char[this.numRows][this.numCols];
         int row = 0;
-        for (final String line : lines) {
+        for (String line : lines) {
+            line = line.replaceAll("\\s+$", "");
             final char[] chars = line.toCharArray();
             for (int column = 0; column < this.numCols; column++) {
                 this.source[row][column] = column > chars.length - 1 ? ' ' : chars[column];
             }
             row++;
         }
+        this.advanceToSource();
     }
 
     public Bytecode getBytecode() {
         final Bytecode bytecode = new Bytecode();
-        this.resetToSource();
         while (nextInstruction(bytecode)) {
 
         }
@@ -90,10 +100,10 @@ public class g2Parser {
         return builder.toString();
     }
 
-    private void resetToSource() {
+    private void advanceToSource() {
         for (int i = 0; i < this.source.length; i++) {
             for (int j = 0; j < this.source[i].length; j++) {
-                if (this.source[i][j] == 'g') {
+                if (this.source[i][j] == 'g' && this.source[i][j + 1] == '-') {
                     this.cRow = i;
                     this.cColumn = j;
                     return;
@@ -103,9 +113,37 @@ public class g2Parser {
         throw new IllegalStateException("The source does not have a g traversal source");
     }
 
+    private int locateAdjacentTraversals() {
+        int childCounter = 0;
+        int tempRow = this.cRow;
+        int tempColumn = this.cColumn;
+        this.traversalStack.push(Pair.with(this.cRow, this.cColumn + 1));
+        this.cRow++;
+        if ('\\' == this.currentCharacter()) {
+            this.traversalStack.push(Pair.with(this.cRow, this.cColumn + 1));
+            childCounter++;
+        }
+        this.cRow = tempRow;
+        this.cColumn = tempColumn;
+        this.cRow--;
+        if ('/' == this.currentCharacter()) {
+            this.traversalStack.push(Pair.with(this.cRow, this.cColumn + 1));
+            childCounter++;
+        }
+        this.cRow = tempRow;
+        this.cColumn = tempColumn;
+        return childCounter;
+    }
+
+    private void resetToTraversalHead() {
+        final Pair<Integer, Integer> point = this.traversalStack.pop();
+        this.cRow = point.getValue0();
+        this.cColumn = point.getValue1();
+    }
+
     private boolean nextInstruction(final Bytecode bytecode) {
         Character current;
-        while ((current = this.currentCharacter()) != null) {
+        while (NO_CHAR != (current = this.currentCharacter())) {
             if ('-' != current)
                 break;
             this.advance();
@@ -115,8 +153,17 @@ public class g2Parser {
         if (null == instruction)
             return false;
 
-        //System.out.println(this.getOperator(instruction) + "::" + Arrays.toString(this.getArguments(instruction)));
-        if (!instruction.equals("g"))
+        final String operator = this.getOperator(instruction);
+        System.out.println(operator + "::" + Arrays.toString(this.getArguments(instruction)));
+        if (operator.equals("by")) {
+            final int numberOfChildren = this.locateAdjacentTraversals();
+            for (int i = 0; i < numberOfChildren; i++) {
+                this.resetToTraversalHead();
+                final Bytecode childBytecode = this.getBytecode();
+                bytecode.addStep("by", childBytecode);
+            }
+            this.resetToTraversalHead();
+        } else if (!instruction.equals("g"))
             bytecode.addStep(this.getOperator(instruction), this.getArguments(instruction));
         return true;
     }
@@ -134,6 +181,14 @@ public class g2Parser {
             return "as";
         else if (instruction.startsWith("*"))
             return "select";
+        else if (instruction.equals("["))
+            return "by";
+        else if (instruction.startsWith("}$"))
+            return "count";
+        else if (instruction.startsWith("}+"))
+            return "sum";
+        else if (instruction.equals("i"))
+            return "identity";
         else
             return instruction.contains("(") ? instruction.substring(0, instruction.indexOf('(')) : instruction;
     }
@@ -172,13 +227,18 @@ public class g2Parser {
     private String advanceThroughNextInstruction() {
         String instruction = "";
         Character current;
-        while ((current = this.currentCharacter()) != null) {
-            if ('-' == current || '[' == current)
+        while (NO_CHAR != (current = this.currentCharacter())) {
+            if ('-' == current || ('[' == current && !instruction.isEmpty()))
                 break;
-            instruction = instruction + current;
-            this.advance();
+            if ('[' == current && instruction.isEmpty()) {
+                this.advance();
+                return "[";
+            } else {
+                instruction = instruction + current;
+                this.advance();
+            }
         }
-        return instruction.isEmpty() ? null : instruction;
+        return instruction.trim().isEmpty() ? null : instruction;
 
     }
 
@@ -189,7 +249,7 @@ public class g2Parser {
     }
 
     private Character currentCharacter() {
-        return this.inSource() ? this.source[this.cRow][this.cColumn] : null;
+        return this.inSource() ? this.source[this.cRow][this.cColumn] : NO_CHAR;
     }
 
     private boolean inSource() {
