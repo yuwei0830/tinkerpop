@@ -20,14 +20,20 @@
 package org.apache.tinkerpop.gremlin.tinkergraph.g2;
 
 import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
+import org.apache.tinkerpop.gremlin.process.traversal.P;
 import org.javatuples.Pair;
 import org.javatuples.Triplet;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @author Marko A. Rodriguez (http://markorodriguez.com)
@@ -35,14 +41,52 @@ import java.util.LinkedList;
 public class g2Parser {
 
     private static final char NO_CHAR = '\u0489';
+    private static final char SPACE = ' ';
+    private static Set<Character> PIPES = new HashSet<>(Arrays.asList('-', '/', '|', '\\'));
+    private static Set<Character> ENDS = new HashSet<>(Arrays.asList(SPACE, NO_CHAR));
+
+    private static final List<Triplet<Pattern, String, Boolean>> OPERATOR_PATTERNS = new ArrayList<Triplet<Pattern, String, Boolean>>() {{
+        add(Triplet.with(Pattern.compile("(?<=^[~])[^~]*(?=~>)"), "out", false));
+        add(Triplet.with(Pattern.compile("(?<=^[<~])[^~]*(?=~)"), "in", false));
+        add(Triplet.with(Pattern.compile("(?<=^[<~])[^~]*(?=~>)"), "both", false));
+        add(Triplet.with(Pattern.compile("(?<=~)$"), "flatMap", true));
+        //add(Triplet.with(Pattern.compile("(?<=%)$"), "map", true));
+        add(Triplet.with(Pattern.compile("(?<=#)$"), "filter", true));
+        add(Triplet.with(Pattern.compile("(?<=~)(.*)"), "values", false));
+        add(Triplet.with(Pattern.compile("(?<=@)(.*)"), "as", false));
+        add(Triplet.with(Pattern.compile("(?<=\\*)(.*)"), "select", false));
+        add(Triplet.with(Pattern.compile("(?<=#!)(.*)"), "hasNot", false));
+        add(Triplet.with(Pattern.compile("(?<=#)(.*)"), "has", false));
+        add(Triplet.with(Pattern.compile("(?<=!)$"), "not", true));
+        add(Triplet.with(Pattern.compile("(?<=}\\$)$"), "count", false));
+        add(Triplet.with(Pattern.compile("(?<=}\\+)$"), "sum", false));
+        add(Triplet.with(Pattern.compile("(?<=}%\\$)$"), "groupCount", false));
+        add(Triplet.with(Pattern.compile("(?<=}%)$"), "group", false));
+        add(Triplet.with(Pattern.compile("(?<=i)$"), "identity", false));
+        add(Triplet.with(Pattern.compile("(?<=M)$"), "match", true));
+        add(Triplet.with(Pattern.compile("(?<=U)$"), "union", true));
+        add(Triplet.with(Pattern.compile("(?<=x)(.*)"), "times", false));
+    }};
+
+    private static final Pattern COMPARE_PATTERN = Pattern.compile("([^!<>=]+)(([<>][=]?)|([!=]=))([^!<>=]+)");
+
+    // accessible objects
+
+    private String traversalSource;
+    private Bytecode rootTraversal;
+
+    // source matrix
 
     private char[][] source;
     private int cRow;
     private int cColumn;
     private int numRows;
     private int numCols;
+    private Pair<Integer, Integer> repeat = null;
 
-    private LinkedList<Pair<Integer, Integer>> traversalStack = new LinkedList<>();
+    public g2Parser(final String source) {
+        this.buildCharacterSource(source);
+    }
 
     public g2Parser(final File file) {
         try {
@@ -56,10 +100,6 @@ public class g2Parser {
         } catch (final Exception e) {
             throw new IllegalStateException(e.getMessage(), e);
         }
-    }
-
-    public g2Parser(final String source) {
-        this.buildCharacterSource(source);
     }
 
     private void buildCharacterSource(final String source) {
@@ -76,20 +116,21 @@ public class g2Parser {
             line = line.replaceAll("\\s+$", "");
             final char[] chars = line.toCharArray();
             for (int column = 0; column < this.numCols; column++) {
-                this.source[row][column] = column > chars.length - 1 ? ' ' : chars[column];
+                this.source[row][column] = column > chars.length - 1 ? SPACE : chars[column];
             }
             row++;
         }
-        this.advanceToSource();
+        this.traversalSource = this.advanceToSource();
+        this.rootTraversal = this.advanceThroughBytecode();
     }
 
     public Bytecode getBytecode() {
-        final Bytecode bytecode = new Bytecode();
-        while (nextInstruction(bytecode)) {
+        return this.rootTraversal;
+    }
 
-        }
-        System.out.println(bytecode);
-        return bytecode;
+
+    public String getTraversalSource() {
+        return this.traversalSource;
     }
 
     public String toString() {
@@ -100,142 +141,209 @@ public class g2Parser {
         return builder.toString();
     }
 
-    private void advanceToSource() {
-        for (int i = 0; i < this.source.length; i++) {
-            for (int j = 0; j < this.source[i].length; j++) {
-                if (this.source[i][j] == 'g' && this.source[i][j + 1] == '-') {
-                    this.cRow = i;
-                    this.cColumn = j;
-                    return;
+    //////////////
+
+    private String advanceToSource() {
+        for (int column = 0; column < this.numCols; column++) {
+            for (int row = 0; row < this.numRows; row++) {
+                if (SPACE != this.source[row][column]) {
+                    this.cRow = row;
+                    this.cColumn = column;
+                    return this.advanceThroughNextInstruction();
                 }
             }
         }
-        throw new IllegalStateException("The source does not have a g traversal source");
+        throw new IllegalStateException("The source does not have a traversal source defined");
     }
 
-    private int locateAdjacentTraversals() {
-        int childCounter = 0;
-        int tempRow = this.cRow;
-        int tempColumn = this.cColumn;
-        this.traversalStack.push(Pair.with(this.cRow, this.cColumn + 1));
-        this.cRow++;
-        if ('\\' == this.currentCharacter()) {
-            this.traversalStack.push(Pair.with(this.cRow, this.cColumn + 1));
-            childCounter++;
+    private Bytecode advanceThroughBytecode() {
+        final Bytecode bytecode = new Bytecode();
+        while (processNextInstruction(bytecode)) {
+
         }
-        this.cRow = tempRow;
-        this.cColumn = tempColumn;
-        this.cRow--;
-        if ('/' == this.currentCharacter()) {
-            this.traversalStack.push(Pair.with(this.cRow, this.cColumn + 1));
-            childCounter++;
-        }
-        this.cRow = tempRow;
-        this.cColumn = tempColumn;
-        return childCounter;
+        //System.out.println(bytecode);
+        return bytecode;
     }
 
-    private void resetToTraversalHead() {
-        final Pair<Integer, Integer> point = this.traversalStack.pop();
-        this.cRow = point.getValue0();
-        this.cColumn = point.getValue1();
-    }
-
-    private boolean nextInstruction(final Bytecode bytecode) {
-        Character current;
-        while (NO_CHAR != (current = this.currentCharacter())) {
-            if ('-' != current)
-                break;
-            this.advance();
-        }
-        final String instruction = this.advanceThroughNextInstruction();
-
-        if (null == instruction)
-            return false;
-
-        final String operator = this.getOperator(instruction);
-        System.out.println(operator + "::" + Arrays.toString(this.getArguments(instruction)));
-        if (operator.equals("by")) {
-            final int numberOfChildren = this.locateAdjacentTraversals();
-            for (int i = 0; i < numberOfChildren; i++) {
-                this.resetToTraversalHead();
-                final Bytecode childBytecode = this.getBytecode();
-                bytecode.addStep("by", childBytecode);
+    private boolean processNextInstruction(final Bytecode bytecode) {
+        String instruction = this.advanceThroughNextInstruction();
+        if (null == instruction) {
+            if (null != this.repeat) {
+                final Pair<Integer, Integer> temp = this.repeat;
+                this.repeat = null;
+                bytecode.addStep("repeat", this.getChildBytecode().toArray());
+                int rTemp = this.cRow;
+                int cTemp = this.cColumn;
+                this.setCursor(temp.getValue0() + 1, temp.getValue1() + 1);
+                final Bytecode untilTraversal = this.getChildBytecode().get(0);
+                for (final Bytecode.Instruction inst : untilTraversal.getStepInstructions()) {
+                    bytecode.addStep(inst.getOperator(), inst.getArguments());
+                }
+                this.setCursor(rTemp, cTemp);
+                return true;
+            } else {
+                return false;
             }
-            this.resetToTraversalHead();
-        } else if (!instruction.equals("g"))
-            bytecode.addStep(this.getOperator(instruction), this.getArguments(instruction));
+        }
+        ///
+        instruction = instruction.trim();
+        for (final Triplet<Pattern, String, Boolean> entry : OPERATOR_PATTERNS) {
+            final Pattern pattern = entry.getValue0();
+            final String operand = entry.getValue1();
+            final Boolean children = entry.getValue2();
+            final Matcher matcher = pattern.matcher(instruction);
+            if (matcher.find()) {
+                final String arguments = matcher.group();
+                if (!arguments.isEmpty()) {
+                    Object[] args;
+                    if (operand.equals("has")) {
+                        final Matcher m = COMPARE_PATTERN.matcher(instruction.substring(1));
+                        if (m.find())
+                            args = new Object[]{m.group(1), this.mapToPredicate(m.group(2), m.group(5))};
+                        else
+                            args = this.processArguments(arguments);
+                    } else
+                        args = this.processArguments(arguments);
+                    bytecode.addStep(operand, args);
+                } else if (children) {
+                    this.moveCursor(0, 1);
+                    bytecode.addStep(operand, this.getChildBytecode().toArray());
+                } else
+                    bytecode.addStep(operand);
+                return true;
+            }
+        }
+        if (instruction.equals("[")) {
+            for (final Bytecode b : this.getChildBytecode()) {
+                if (b.getInstructions().iterator().hasNext())
+                    bytecode.addStep("by", b);
+                else
+                    bytecode.addStep("by");
+            }
+        } else {
+            if (instruction.contains("("))
+                bytecode.addStep(instruction.substring(0, instruction.indexOf('(')),
+                        this.processArguments(instruction.substring(instruction.indexOf('(') + 1, instruction.length() - 1)));
+            else
+                bytecode.addStep(instruction);
+        }
+
         return true;
     }
 
-    private String getOperator(final String instruction) {
-        if (instruction.startsWith("~") && instruction.endsWith(">"))
-            return "out";
-        else if (instruction.startsWith("<") && instruction.endsWith("~"))
-            return "in";
-        else if (instruction.startsWith("<") && instruction.endsWith(">"))
-            return "both";
-        else if (instruction.startsWith("~"))
-            return "values";
-        else if (instruction.startsWith("@"))
-            return "as";
-        else if (instruction.startsWith("*"))
-            return "select";
-        else if (instruction.equals("["))
-            return "by";
-        else if (instruction.startsWith("}$"))
-            return "count";
-        else if (instruction.startsWith("}+"))
-            return "sum";
-        else if (instruction.equals("i"))
-            return "identity";
-        else
-            return instruction.contains("(") ? instruction.substring(0, instruction.indexOf('(')) : instruction;
+    private List<Bytecode> getChildBytecode() {
+        return this.getChildBytecode(true, 0, this.cRow, this.cColumn, new ArrayList<>());
     }
 
-    private Object[] getArguments(final String instruction) {
-        final String[] args;
-        if (instruction.contains("~") && (instruction.startsWith("<") || instruction.endsWith(">")))
-            args = stringify(instruction.replaceAll("~", "").replaceAll("<", "").replaceAll(">", "").split(","));
-        else if (instruction.startsWith("@") || instruction.startsWith("*") || instruction.startsWith("~"))
-            args = stringify(instruction.substring(1).split(","));
-        else if (instruction.contains("("))
-            args = instruction.substring(instruction.indexOf("(") + 1, instruction.length() - 1).split(",");
-        else
-            args = new String[0];
-
-        Object[] arguments = new Object[args.length];
-        for (int i = 0; i < args.length; i++) {
-            final String s = args[i];
-            if (s.startsWith("'") && s.endsWith("'"))
-                arguments[i] = s.substring(1, s.length() - 1);
-            else
-                arguments[i] = Double.valueOf(s);
-            //else
-            //    throw new IllegalStateException("The following argument can not be parsed:" + s);
+    private List<Bytecode> getChildBytecode(final boolean branch, final int previousRowOffset, final int cRow, final int cColumn, final List<Bytecode> children) {
+        this.setCursor(cRow, cColumn);
+        int endRow = -1;
+        int endColumn = -1;
+        if (branch) {
+            int openNest = 1;
+            while (true) {
+                if ('[' == this.currentCharacter()) {
+                    openNest++;
+                } else if (']' == this.currentCharacter()) {
+                    openNest--;
+                    if (0 == openNest) {
+                        endRow = this.cRow;
+                        endColumn = this.cColumn + 1;
+                        break;
+                    }
+                } else if (NO_CHAR == this.currentCharacter()) {
+                    endRow = this.cRow;
+                    endColumn = this.cColumn + 1;
+                    break;
+                }
+                this.moveCursor(0, 1);
+            }
         }
-        return arguments;
+        this.setCursor(cRow, cColumn);
+        if ('|' == this.peekCharacter(-1, 0) && previousRowOffset <= 0) {
+            this.getChildBytecode(false, -1, cRow - 1, cColumn, children);
+        }
+        this.setCursor(cRow, cColumn);
+        if ('/' == this.peekCharacter(-1, 0)) {
+            this.getChildBytecode(false, -1, cRow - 1, cColumn + 1, children);
+        }
+        //
+        this.setCursor(cRow, cColumn);
+        if ('-' == this.peekCharacter(0, 1) || '-' == this.currentCharacter()) {
+            this.moveCursor(0, 1);
+            children.add(this.advanceThroughBytecode());
+        }
+        //
+        this.setCursor(cRow, cColumn);
+        if ('\\' == this.peekCharacter(1, 0)) {
+            this.getChildBytecode(false, 1, cRow + 1, cColumn + 1, children);
+        }
+        //
+        this.setCursor(cRow, cColumn);
+        if ('|' == this.peekCharacter(1, 0) && previousRowOffset >= 0) {
+            this.getChildBytecode(false, 1, cRow + 1, cColumn, children);
+        }
+        if (branch)
+            this.setCursor(endRow, endColumn);
+        return children;
     }
 
-    private String[] stringify(final String[] args) {
-        for (int i = 0; i < args.length; i++) {
-            args[i] = "'" + args[i] + "'";
+    private boolean advanceToNextInstruction() {
+        while (true) {
+            final char current = this.currentCharacter();
+            if ('[' == current && '^' == this.peekCharacter(1, 0)) {
+                this.repeat = Pair.with(this.cRow, this.cColumn);
+                this.moveCursor(0, 1);
+                return true;
+            }
+            if (PIPES.contains(current)) {
+                if ('-' == current)
+                    this.moveCursor(0, 1);
+                else if ('/' == current) {
+                    if ('/' == this.peekCharacter(-1, 1))
+                        this.moveCursor(-1, 1);
+                    else if ('-' == this.peekCharacter(0, 1))
+                        this.moveCursor(0, 1);
+                    else
+                        return false;
+                } else if ('\\' == current) {
+                    if ('\\' == this.peekCharacter(1, 1))
+                        this.moveCursor(1, 1);
+                    else if ('-' == this.peekCharacter(0, 1))
+                        this.moveCursor(0, 1);
+                    else
+                        return false;
+                } else
+                    return false;
+            } else if (ENDS.contains(current)) {
+                if ('/' == this.peekCharacter(-1, 0))
+                    this.moveCursor(-1, 0);
+                else if ('\\' == this.peekCharacter(1, 0))
+                    this.moveCursor(1, 0);
+                else
+                    return false;
+            } else
+                return true;
         }
-        return args;
     }
 
     private String advanceThroughNextInstruction() {
+        if (!this.advanceToNextInstruction())
+            return null;
         String instruction = "";
-        Character current;
+        char current;
         while (NO_CHAR != (current = this.currentCharacter())) {
             if ('-' == current || ('[' == current && !instruction.isEmpty()))
                 break;
             if ('[' == current && instruction.isEmpty()) {
-                this.advance();
+                this.moveCursor(0, 1);
                 return "[";
+            } else if (']' == current) {
+                this.moveCursor(0, 1);
+                break;
             } else {
                 instruction = instruction + current;
-                this.advance();
+                this.moveCursor(0, 1);
             }
         }
         return instruction.trim().isEmpty() ? null : instruction;
@@ -244,16 +352,73 @@ public class g2Parser {
 
     //////////
 
-    private void advance() {
-        this.cColumn++;
+    private char currentCharacter() {
+        return this.cRow >= 0 && this.cRow < this.numRows && this.cColumn >= 0 && this.cColumn < this.numCols ?
+                this.source[this.cRow][this.cColumn] :
+                NO_CHAR;
     }
 
-    private Character currentCharacter() {
-        return this.inSource() ? this.source[this.cRow][this.cColumn] : NO_CHAR;
+    private char peekCharacter(final int rOffset, final int cOffset) {
+        final int tempRow = this.cRow;
+        final int tempColumn = this.cColumn;
+        this.cRow = this.cRow + rOffset;
+        this.cColumn = this.cColumn + cOffset;
+        final char peek = this.currentCharacter();
+        this.cRow = tempRow;
+        this.cColumn = tempColumn;
+        return peek;
     }
 
-    private boolean inSource() {
-        return this.cRow < this.numRows && this.cColumn < this.numCols;
+    private void moveCursor(final int rOffset, final int cOffset) {
+        this.cRow = this.cRow + rOffset;
+        this.cColumn = this.cColumn + cOffset;
+    }
+
+    private void setCursor(final int cRow, final int cColumn) {
+        this.cRow = cRow;
+        this.cColumn = cColumn;
+    }
+
+    private <V> P<V> mapToPredicate(final String predicate, final V value) {
+        if (predicate.equals("=="))
+            return P.eq(value);
+        else if (predicate.equals(">="))
+            return P.gte(value);
+        else if (predicate.equals("<="))
+            return P.lte(value);
+        else if (predicate.equals(">"))
+            return P.gt(value);
+        else if (predicate.equals("<"))
+            return P.lt(value);
+        else if (predicate.equals("!="))
+            return P.neq(value);
+        else
+            throw new IllegalStateException("Can not parse predicate: " + predicate + ":" + value);
+
+    }
+
+    private Object[] processArguments(final String arguments) {
+        final String[] args = arguments.split(",");
+        final Object[] objects = new Object[args.length];
+        for (int i = 0; i < args.length; i++) {
+            final String arg = args[i];
+            if (arg.equals("true") || arg.equals("false"))
+                objects[i] = Boolean.valueOf(arg);
+            else if (Pattern.compile("^[0-9]").matcher(arg).find()) {
+                if (arg.contains(".") && arg.endsWith("f"))
+                    objects[i] = Float.valueOf(arg);
+                else if (arg.contains("."))
+                    objects[i] = Double.valueOf(arg);
+                else if (arg.endsWith("l"))
+                    objects[i] = Long.valueOf(arg);
+                else
+                    objects[i] = Integer.valueOf(arg);
+            } else if (arg.startsWith("'") && arg.endsWith("'")) {
+                objects[i] = arg.substring(1, arg.length() - 1);
+            } else
+                objects[i] = arg;
+        }
+        return objects;
     }
 
 }
