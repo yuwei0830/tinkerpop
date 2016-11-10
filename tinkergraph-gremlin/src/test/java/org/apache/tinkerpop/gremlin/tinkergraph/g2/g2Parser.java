@@ -138,17 +138,16 @@ public class g2Parser {
         return this.rootTraversal;
     }
 
-
-    public String getTraversalSource() {
-        return this.traversalSource;
-    }
-
-    public String toString() {
+    public String getSourceCode() {
         final StringBuilder builder = new StringBuilder();
         for (final char[] row : this.source) {
             builder.append(new String(row)).append("\n");
         }
         return builder.toString();
+    }
+
+    public String getTraversalSource() {
+        return this.traversalSource;
     }
 
     //////////////
@@ -213,16 +212,14 @@ public class g2Parser {
                     Object[] args;
                     if (operand.equals("has")) {
                         final Matcher m = PREDICATE_PATTERN.matcher(instruction.substring(1));
-                        if (m.find())
-                            args = new Object[]{m.group(1), this.mapToPredicate(m.group(2), m.group(5))};
-                        else
-                            args = this.processArguments(arguments);
+                        args = m.find() ?
+                                new Object[]{m.group(1), this.mapToPredicate(m.group(2), m.group(5))} :
+                                this.processArguments(arguments);
                     } else if (operand.equals("where")) {
                         final Matcher m = PREDICATE_PATTERN.matcher(instruction.substring(1));
-                        if (m.find())
-                            args = new Object[]{m.group(1).substring(1), this.mapToPredicate(m.group(2), m.group(5).substring(1))};
-                        else
-                            args = this.processArguments(arguments);
+                        args = m.find() ?
+                                new Object[]{m.group(1).substring(1), this.mapToPredicate(m.group(2), m.group(5).substring(1))} :
+                                this.processArguments(arguments);
                     } else
                         args = this.processArguments(arguments);
                     bytecode.addStep(operand, args);
@@ -234,6 +231,7 @@ public class g2Parser {
                 return true;
             }
         }
+        ////////
         if (instruction.equals("[")) {
             for (final Bytecode b : this.getChildBytecode()) {
                 if (b.getInstructions().iterator().hasNext())
@@ -241,13 +239,11 @@ public class g2Parser {
                 else
                     bytecode.addStep("by");
             }
-        } else {
-            if (instruction.contains("("))
-                bytecode.addStep(instruction.substring(0, instruction.indexOf('(')),
-                        this.processArguments(instruction.substring(instruction.indexOf('(') + 1, instruction.length() - 1)));
-            else
-                bytecode.addStep(instruction);
-        }
+        } else if (instruction.contains("(")) {
+            bytecode.addStep(instruction.substring(0, instruction.indexOf('(')),
+                    this.processArguments(instruction.substring(instruction.indexOf('(') + 1, instruction.length() - 1)));
+        } else
+            bytecode.addStep(instruction);
 
         return true;
     }
@@ -382,17 +378,14 @@ public class g2Parser {
     private char peekCharacter(final int rOffset, final int cOffset) {
         final int tempRow = this.cRow;
         final int tempColumn = this.cColumn;
-        this.cRow = this.cRow + rOffset;
-        this.cColumn = this.cColumn + cOffset;
+        this.moveCursor(rOffset, cOffset);
         final char peek = this.currentCharacter();
-        this.cRow = tempRow;
-        this.cColumn = tempColumn;
+        this.setCursor(tempRow, tempColumn);
         return peek;
     }
 
     private void moveCursor(final int rOffset, final int cOffset) {
-        this.cRow = this.cRow + rOffset;
-        this.cColumn = this.cColumn + cOffset;
+        this.setCursor(this.cRow + rOffset, this.cColumn + cOffset);
     }
 
     private void setCursor(final int cRow, final int cColumn) {
