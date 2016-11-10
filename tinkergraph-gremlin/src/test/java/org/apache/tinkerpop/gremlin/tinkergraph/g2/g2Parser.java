@@ -50,8 +50,8 @@ public class g2Parser {
         add(Triplet.with(Pattern.compile("(?<=<<~)[^~]*(?=~)"), "inE", false));
         add(Triplet.with(Pattern.compile("(?<=<<~)[^~]*(?=~>>)"), "bothE", false));
         add(Triplet.with(Pattern.compile("(?<=^~)[^~]*(?=~>)"), "out", false));
-        add(Triplet.with(Pattern.compile("(?<=^<~)[^~]*(?=~)"), "in", false));
         add(Triplet.with(Pattern.compile("(?<=^<~)[^~]*(?=~>)"), "both", false));
+        add(Triplet.with(Pattern.compile("(?<=^<~)[^~]*(?=~)"), "in", false));
         add(Triplet.with(Pattern.compile("(?<=^<<)$"), "inV", false));
         add(Triplet.with(Pattern.compile("(?<=^>>)$"), "outV", false));
         add(Triplet.with(Pattern.compile("(?<=^<<>>)$"), "bothV", false));
