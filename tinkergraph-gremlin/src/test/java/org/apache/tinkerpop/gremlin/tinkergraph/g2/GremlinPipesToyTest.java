@@ -22,6 +22,7 @@ package org.apache.tinkerpop.gremlin.tinkergraph.g2;
 import org.apache.tinkerpop.gremlin.jsr223.JavaTranslator;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
+import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerFactory;
 import org.junit.Test;
 
@@ -30,13 +31,18 @@ import java.io.File;
 /**
  * @author Marko A. Rodriguez (http://markorodriguez.com)
  */
-public class g2ParserTest {
+public class GremlinPipesToyTest {
+
+    @Test
+    public void aTest() {
+        assert T.id instanceof Enum;
+    }
 
     @Test
     public void shouldParse() {
         final GraphTraversalSource g = TinkerFactory.createModern().traversal();
-        for (int i = 2; i < 7; i++) {
-            final g2Parser parser = new g2Parser(new File("/Users/marko/Desktop/g" + i + ".txt"));
+        for (int i = 2; i < 8; i++) {
+            final Parser parser = new Parser(new File("/Users/marko/Desktop/g" + i + ".txt"));
             System.out.println("\n///////////////////////////////////////////////////");
             System.out.println("///////////////////////////////////////////////////");
             System.out.println("///////////////////////////////////////////////////\n");
@@ -53,5 +59,12 @@ public class g2ParserTest {
             System.out.println("\n// Result");
             System.out.println(traversal.toList());
         }
+    }
+
+    @Test
+    public void shouldTranslate() {
+        final GraphTraversalSource g = TinkerFactory.createModern().traversal();
+        String translation = PipesTranslator.of("g").translate(g.V().out().in("created","knows").values("name").count().asAdmin().getBytecode());
+        System.out.println(translation);
     }
 }

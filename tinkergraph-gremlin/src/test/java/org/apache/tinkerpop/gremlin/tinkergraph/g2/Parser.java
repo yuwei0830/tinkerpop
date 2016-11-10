@@ -21,6 +21,7 @@ package org.apache.tinkerpop.gremlin.tinkergraph.g2;
 
 import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
+import org.apache.tinkerpop.gremlin.util.CoreImports;
 import org.javatuples.Pair;
 import org.javatuples.Triplet;
 
@@ -29,8 +30,10 @@ import java.io.File;
 import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -38,7 +41,7 @@ import java.util.regex.Pattern;
 /**
  * @author Marko A. Rodriguez (http://markorodriguez.com)
  */
-public class g2Parser {
+public class Parser {
 
     private static final char NO_CHAR = '\u0489';
     private static final char SPACE = ' ';
@@ -80,6 +83,14 @@ public class g2Parser {
     private static final Pattern PREDICATE_PATTERN = Pattern.compile("([^!<>=]+)(([<>][=]?)|([!=]=))([^!<>=]+)");
     private static final Pattern NUMBER_PATTERN = Pattern.compile("^[0-9]");
 
+    private static final Map<String, Enum> TOKEN_MAP = new HashMap<>();
+
+    static {
+        CoreImports.getEnumImports().forEach(token -> {
+            TOKEN_MAP.put("`" + token.name(), token);
+        });
+    }
+
     // accessible objects
 
     private String traversalSource;
@@ -94,11 +105,11 @@ public class g2Parser {
     private int numCols;
     private Pair<Integer, Integer> repeat = null;
 
-    public g2Parser(final String source) {
+    public Parser(final String source) {
         this.buildCharacterSource(source);
     }
 
-    public g2Parser(final File file) {
+    public Parser(final File file) {
         try {
             final BufferedReader reader = new BufferedReader(new FileReader(file));
             final StringBuilder builder = new StringBuilder();
@@ -175,7 +186,7 @@ public class g2Parser {
     }
 
     private static Bytecode processBytecode(final String traversal) {
-        return new g2Parser(traversal).getBytecode();
+        return new Parser(traversal).getBytecode();
     }
 
     private boolean processNextInstruction(final Bytecode bytecode) {
@@ -429,9 +440,11 @@ public class g2Parser {
                     objects[i] = Long.valueOf(arg);
                 else
                     objects[i] = Integer.valueOf(arg);
-            } else if (arg.startsWith("'") && arg.endsWith("'")) {
+            } else if (arg.startsWith("'") && arg.endsWith("'"))
                 objects[i] = arg.substring(1, arg.length() - 1);
-            } else
+            else if (arg.startsWith("`"))
+                objects[i] = TOKEN_MAP.get(arg);
+            else
                 objects[i] = arg;
         }
         return objects;
