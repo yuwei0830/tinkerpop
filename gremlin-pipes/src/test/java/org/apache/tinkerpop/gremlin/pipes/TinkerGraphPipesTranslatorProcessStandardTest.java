@@ -17,11 +17,10 @@
  *  under the License.
  */
 
-package org.apache.tinkerpop.gremlin.tinkergraph.g2.jsr223;
+package org.apache.tinkerpop.gremlin.pipes;
 
 import org.apache.tinkerpop.gremlin.GraphProviderClass;
 import org.apache.tinkerpop.gremlin.process.ProcessStandardSuite;
-import org.apache.tinkerpop.gremlin.tinkergraph.process.jsr223.TinkerGraphJavaTranslatorProvider;
 import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerGraph;
 import org.junit.runner.RunWith;
 

@@ -17,8 +17,9 @@
  *  under the License.
  */
 
-package org.apache.tinkerpop.gremlin.tinkergraph.g2;
+package org.apache.tinkerpop.gremlin.pipes;
 
+import org.apache.tinkerpop.gremlin.pipes.jsr223.GremlinPipesScriptEngineFactory;
 import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
 import org.apache.tinkerpop.gremlin.process.traversal.Compare;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
@@ -129,9 +130,9 @@ public class PipesTranslator implements Translator.ScriptTranslator {
                 return "#" + commaSeparateOrNoneArguments(arguments).replaceAll(",", "");
             case "where": {
                 if (arguments[0] instanceof String) {
-                    return "#*" + arguments[0] + ENUM_MAP.get(((P) arguments[1]).getBiPredicate()) + "*" + ((P)arguments[1]).getOriginalValue();
+                    return "#*" + arguments[0] + ENUM_MAP.get(((P) arguments[1]).getBiPredicate()) + "*" + ((P) arguments[1]).getOriginalValue();
                 } else if (arguments[0] instanceof P) {
-                    return "#" + ENUM_MAP.get(((P) arguments[0]).getBiPredicate()) + "*" + ((P)arguments[0]).getOriginalValue();
+                    return "#" + ENUM_MAP.get(((P) arguments[0]).getBiPredicate()) + "*" + ((P) arguments[0]).getOriginalValue();
                 }
             }
 

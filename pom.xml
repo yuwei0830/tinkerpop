@@ -118,6 +118,7 @@ limitations under the License.
         <module>gremlin-groovy-test</module>
         <module>tinkergraph-gremlin</module>
         <module>gremlin-python</module>
+        <module>gremlin-pipes</module>
         <module>hadoop-gremlin</module>
         <module>spark-gremlin</module>
         <module>giraph-gremlin</module>
