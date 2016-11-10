@@ -35,10 +35,13 @@ public class g2ParserTest {
     @Test
     public void shouldParse() {
         final GraphTraversalSource g = TinkerFactory.createModern().traversal();
-        for (int i = 2; i < 6; i++) {
+        for (int i = 2; i < 7; i++) {
             final g2Parser parser = new g2Parser(new File("/Users/marko/Desktop/g" + i + ".txt"));
             final Traversal.Admin<?, ?> traversal = JavaTranslator.of(g).translate(parser.getBytecode());
             //System.out.println(parser.getTraversalSource());
+            System.out.println("\n///////////////////////////////////////////////////");
+            System.out.println("///////////////////////////////////////////////////");
+            System.out.println("///////////////////////////////////////////////////\n");
             System.out.println("// 2g source\n");
             System.out.println(parser);
             System.out.println("\n// Gremlin bytecode");

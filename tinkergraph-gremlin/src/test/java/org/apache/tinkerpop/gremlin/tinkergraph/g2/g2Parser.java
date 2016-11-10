@@ -46,29 +46,39 @@ public class g2Parser {
     private static Set<Character> ENDS = new HashSet<>(Arrays.asList(SPACE, NO_CHAR));
 
     private static final List<Triplet<Pattern, String, Boolean>> OPERATOR_PATTERNS = new ArrayList<Triplet<Pattern, String, Boolean>>() {{
-        add(Triplet.with(Pattern.compile("(?<=^[~])[^~]*(?=~>)"), "out", false));
-        add(Triplet.with(Pattern.compile("(?<=^[<~])[^~]*(?=~)"), "in", false));
-        add(Triplet.with(Pattern.compile("(?<=^[<~])[^~]*(?=~>)"), "both", false));
-        add(Triplet.with(Pattern.compile("(?<=~)$"), "flatMap", true));
-        //add(Triplet.with(Pattern.compile("(?<=%)$"), "map", true));
-        add(Triplet.with(Pattern.compile("(?<=#)$"), "filter", true));
-        add(Triplet.with(Pattern.compile("(?<=~)(.*)"), "values", false));
-        add(Triplet.with(Pattern.compile("(?<=@)(.*)"), "as", false));
-        add(Triplet.with(Pattern.compile("(?<=\\*)(.*)"), "select", false));
-        add(Triplet.with(Pattern.compile("(?<=#!)(.*)"), "hasNot", false));
-        add(Triplet.with(Pattern.compile("(?<=#)(.*)"), "has", false));
-        add(Triplet.with(Pattern.compile("(?<=!)$"), "not", true));
-        add(Triplet.with(Pattern.compile("(?<=}\\$)$"), "count", false));
-        add(Triplet.with(Pattern.compile("(?<=}\\+)$"), "sum", false));
-        add(Triplet.with(Pattern.compile("(?<=}%\\$)$"), "groupCount", false));
-        add(Triplet.with(Pattern.compile("(?<=}%)$"), "group", false));
-        add(Triplet.with(Pattern.compile("(?<=i)$"), "identity", false));
-        add(Triplet.with(Pattern.compile("(?<=M)$"), "match", true));
-        add(Triplet.with(Pattern.compile("(?<=U)$"), "union", true));
-        add(Triplet.with(Pattern.compile("(?<=x)(.*)"), "times", false));
+        add(Triplet.with(Pattern.compile("(?<=^~)[^~]*(?=~>>)"), "outE", false));
+        add(Triplet.with(Pattern.compile("(?<=<<~)[^~]*(?=~)"), "inE", false));
+        add(Triplet.with(Pattern.compile("(?<=<<~)[^~]*(?=~>>)"), "bothE", false));
+        add(Triplet.with(Pattern.compile("(?<=^~)[^~]*(?=~>)"), "out", false));
+        add(Triplet.with(Pattern.compile("(?<=^<~)[^~]*(?=~)"), "in", false));
+        add(Triplet.with(Pattern.compile("(?<=^<~)[^~]*(?=~>)"), "both", false));
+        add(Triplet.with(Pattern.compile("(?<=^<<)$"), "inV", false));
+        add(Triplet.with(Pattern.compile("(?<=^>>)$"), "outV", false));
+        add(Triplet.with(Pattern.compile("(?<=^<<>>)$"), "bothV", false));
+        // add(Triplet.with(Pattern.compile("(?<=%)$"), "map", true));
+        add(Triplet.with(Pattern.compile("(?<=^#)$"), "filter", true));
+        add(Triplet.with(Pattern.compile("(?<=^~)(.*)"), "values", false));
+        add(Triplet.with(Pattern.compile("(?<=^@)(.*)"), "as", false));
+        add(Triplet.with(Pattern.compile("(?<=^#)([\\*].*)"), "where", false));
+        add(Triplet.with(Pattern.compile("(?<=^\\*)(.*)"), "select", false));
+        add(Triplet.with(Pattern.compile("(?<=^#!)(.*)"), "hasNot", false));
+        add(Triplet.with(Pattern.compile("(?<=^#)(.*)"), "has", false));
+        add(Triplet.with(Pattern.compile("(?<=^!)$"), "not", true));
+        add(Triplet.with(Pattern.compile("(?<=^}\\$)$"), "count", false));
+        add(Triplet.with(Pattern.compile("(?<=^}\\+)$"), "sum", false));
+        add(Triplet.with(Pattern.compile("(?<=^}%\\$)(.*)"), "groupCount", false));
+        add(Triplet.with(Pattern.compile("(?<=^}%)(.*)"), "group", false));
+        add(Triplet.with(Pattern.compile("(?<=^})([0-9]*)(?=\\{)"), "barrier", false));
+        add(Triplet.with(Pattern.compile("(?<=^})([a-z|A-Z]*)(?=\\{)"), "aggregate", false));
+        add(Triplet.with(Pattern.compile("(?<=^i)$"), "identity", false));
+        add(Triplet.with(Pattern.compile("(?<=^M)$"), "match", true));
+        add(Triplet.with(Pattern.compile("(?<=^U)$"), "union", true));
+        add(Triplet.with(Pattern.compile("(?<=^x)(.*)"), "times", false));
+        add(Triplet.with(Pattern.compile("(?<=\\{)"), "flatMap", true));
     }};
 
-    private static final Pattern COMPARE_PATTERN = Pattern.compile("([^!<>=]+)(([<>][=]?)|([!=]=))([^!<>=]+)");
+    private static final Pattern PREDICATE_PATTERN = Pattern.compile("([^!<>=]+)(([<>][=]?)|([!=]=))([^!<>=]+)");
+    private static final Pattern NUMBER_PATTERN = Pattern.compile("^[0-9]");
 
     // accessible objects
 
@@ -165,6 +175,10 @@ public class g2Parser {
         return bytecode;
     }
 
+    private static Bytecode processBytecode(final String traversal) {
+        return new g2Parser(traversal).getBytecode();
+    }
+
     private boolean processNextInstruction(final Bytecode bytecode) {
         String instruction = this.advanceThroughNextInstruction();
         if (null == instruction) {
@@ -187,6 +201,7 @@ public class g2Parser {
         }
         ///
         instruction = instruction.trim();
+        //System.out.println(instruction + "!!");
         for (final Triplet<Pattern, String, Boolean> entry : OPERATOR_PATTERNS) {
             final Pattern pattern = entry.getValue0();
             final String operand = entry.getValue1();
@@ -197,9 +212,15 @@ public class g2Parser {
                 if (!arguments.isEmpty()) {
                     Object[] args;
                     if (operand.equals("has")) {
-                        final Matcher m = COMPARE_PATTERN.matcher(instruction.substring(1));
+                        final Matcher m = PREDICATE_PATTERN.matcher(instruction.substring(1));
                         if (m.find())
                             args = new Object[]{m.group(1), this.mapToPredicate(m.group(2), m.group(5))};
+                        else
+                            args = this.processArguments(arguments);
+                    } else if (operand.equals("where")) {
+                        final Matcher m = PREDICATE_PATTERN.matcher(instruction.substring(1));
+                        if (m.find())
+                            args = new Object[]{m.group(1).substring(1), this.mapToPredicate(m.group(2), m.group(5).substring(1))};
                         else
                             args = this.processArguments(arguments);
                     } else
@@ -404,7 +425,7 @@ public class g2Parser {
             final String arg = args[i];
             if (arg.equals("true") || arg.equals("false"))
                 objects[i] = Boolean.valueOf(arg);
-            else if (Pattern.compile("^[0-9]").matcher(arg).find()) {
+            else if (NUMBER_PATTERN.matcher(arg).find()) {
                 if (arg.contains(".") && arg.endsWith("f"))
                     objects[i] = Float.valueOf(arg);
                 else if (arg.contains("."))
