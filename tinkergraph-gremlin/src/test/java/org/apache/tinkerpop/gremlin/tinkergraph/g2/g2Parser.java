@@ -277,29 +277,31 @@ public class g2Parser {
             }
         }
         this.setCursor(cRow, cColumn);
-        if ('|' == this.peekCharacter(-1, 0) && previousRowOffset <= 0) {
+        if ('|' == this.peekCharacter(-1, 0) && previousRowOffset <= 0)
             this.getChildBytecode(false, -1, cRow - 1, cColumn, children);
-        }
-        this.setCursor(cRow, cColumn);
-        if ('/' == this.peekCharacter(-1, 0)) {
-            this.getChildBytecode(false, -1, cRow - 1, cColumn + 1, children);
-        }
         //
         this.setCursor(cRow, cColumn);
-        if ('-' == this.peekCharacter(0, 1) || '-' == this.currentCharacter()) {
+        if ('/' == this.peekCharacter(-1, 0))
+            this.getChildBytecode(false, -1, cRow - 1, cColumn + 1, children);
+        else if ('/' == this.peekCharacter(-1, 1))
+            this.getChildBytecode(false, -1, cRow - 1, cColumn + 1, children);
+        //
+        this.setCursor(cRow, cColumn);
+        if ('-' == this.currentCharacter() || '-' == this.peekCharacter(0, 1)) {
             this.moveCursor(0, 1);
             children.add(this.advanceThroughBytecode());
         }
         //
         this.setCursor(cRow, cColumn);
-        if ('\\' == this.peekCharacter(1, 0)) {
+        if ('\\' == this.peekCharacter(1, 0))
             this.getChildBytecode(false, 1, cRow + 1, cColumn + 1, children);
-        }
+        else if ('\\' == this.peekCharacter(1, 1))
+            this.getChildBytecode(false, 1, cRow + 1, cColumn + 1, children);
         //
         this.setCursor(cRow, cColumn);
-        if ('|' == this.peekCharacter(1, 0) && previousRowOffset >= 0) {
+        if ('|' == this.peekCharacter(1, 0) && previousRowOffset >= 0)
             this.getChildBytecode(false, 1, cRow + 1, cColumn, children);
-        }
+        //
         if (branch)
             this.setCursor(endRow, endColumn);
         return children;
