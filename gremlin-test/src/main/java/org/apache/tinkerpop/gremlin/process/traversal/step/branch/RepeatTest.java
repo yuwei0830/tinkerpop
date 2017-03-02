@@ -22,6 +22,7 @@ import org.apache.tinkerpop.gremlin.LoadGraphWith;
 import org.apache.tinkerpop.gremlin.process.AbstractGremlinProcessTest;
 import org.apache.tinkerpop.gremlin.process.GremlinProcessRunner;
 import org.apache.tinkerpop.gremlin.process.traversal.Path;
+import org.apache.tinkerpop.gremlin.process.traversal.Scope;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.MapHelper;
 import org.apache.tinkerpop.gremlin.structure.T;
@@ -36,6 +37,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.tinkerpop.gremlin.LoadGraphWith.GraphData.MODERN;
+import static org.apache.tinkerpop.gremlin.process.traversal.Pop.all;
+import static org.apache.tinkerpop.gremlin.process.traversal.Scope.local;
 import static org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__.*;
 import static org.junit.Assert.*;
 
@@ -75,6 +78,10 @@ public abstract class RepeatTest extends AbstractGremlinProcessTest {
     public abstract Traversal<Vertex, Map<String, Vertex>> get_g_V_repeatXbothX_timesX10X_asXaX_out_asXbX_selectXa_bX();
 
     public abstract Traversal<Vertex, String> get_g_VX1X_repeatXoutX_untilXoutE_count_isX0XX_name(final Object v1Id);
+
+    public abstract Traversal<Vertex, Long> get_g_V_asXvX_emit_repeatXboth_asXvX_dedupX_selectXvX_count();
+
+    public abstract Traversal<Vertex, List<Vertex>> get_g_V_asXvX_emit_repeatXboth_asXvX_dedupX_selectXall_vX_order_byXcountXlocalXX();
 
     @Test
     @LoadGraphWith(MODERN)
@@ -234,6 +241,30 @@ public abstract class RepeatTest extends AbstractGremlinProcessTest {
         checkResults(Arrays.asList("lop", "lop", "ripple", "vadas"), traversal);
     }
 
+    @Test
+    @LoadGraphWith(MODERN)
+    public void g_V_asXvX_emit_repeatXboth_asXvX_dedupX_selectXvX_count() {
+        final Traversal<Vertex, Long> traversal = get_g_V_asXvX_emit_repeatXboth_asXvX_dedupX_selectXvX_count();
+        printTraversalForm(traversal);
+        assertTrue(traversal.hasNext());
+        assertEquals(12L, traversal.next().longValue());
+        assertFalse(traversal.hasNext());
+    }
+
+    @Test
+    @LoadGraphWith(MODERN)
+    public void g_V_asXvX_emit_repeatXboth_asXvX_dedupX_selectXall_vX_order_byXcountXlocalXX() {
+        final Traversal<Vertex, List<Vertex>> traversal = get_g_V_asXvX_emit_repeatXboth_asXvX_dedupX_selectXall_vX_order_byXcountXlocalXX();
+        printTraversalForm(traversal);
+        for (int j = 1; j <= 2; j++) {
+            for (int i = 0; i < 6; i++) {
+                assertTrue(traversal.hasNext());
+                assertEquals(j, traversal.next().size());
+            }
+            assertFalse(traversal.hasNext());
+        }
+    }
+
     public static class Traversals extends RepeatTest {
 
         @Override
@@ -289,6 +320,16 @@ public abstract class RepeatTest extends AbstractGremlinProcessTest {
         @Override
         public Traversal<Vertex, String> get_g_VX1X_repeatXoutX_untilXoutE_count_isX0XX_name(final Object v1Id) {
             return g.V(v1Id).repeat(out()).until(outE().count().is(0)).values("name");
+        }
+
+        @Override
+        public Traversal<Vertex, Long> get_g_V_asXvX_emit_repeatXboth_asXvX_dedupX_selectXvX_count() {
+            return g.V().as("v").emit().repeat(both().as("v").dedup()).select("v").count();
+        }
+
+        @Override
+        public Traversal<Vertex, List<Vertex>> get_g_V_asXvX_emit_repeatXboth_asXvX_dedupX_selectXall_vX_order_byXcountXlocalXX() {
+            return g.V().as("v").emit().repeat(both().as("v").dedup()).<List<Vertex>>select(all, "v").order().by(count(local));
         }
     }
 }

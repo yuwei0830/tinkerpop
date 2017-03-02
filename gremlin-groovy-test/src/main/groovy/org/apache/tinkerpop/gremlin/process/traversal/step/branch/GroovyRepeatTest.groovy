@@ -23,6 +23,11 @@ import org.apache.tinkerpop.gremlin.process.traversal.Traversal
 import org.apache.tinkerpop.gremlin.process.traversal.util.ScriptTraversal
 import org.apache.tinkerpop.gremlin.structure.Vertex
 
+import static org.apache.tinkerpop.gremlin.process.traversal.Pop.all
+import static org.apache.tinkerpop.gremlin.process.traversal.Scope.local
+import static org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__.both
+import static org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__.count
+
 /**
  * @author Marko A. Rodriguez (http://markorodriguez.com)
  */
@@ -77,12 +82,22 @@ public abstract class GroovyRepeatTest {
 
         @Override
         public Traversal<Vertex, Map<String, Vertex>> get_g_V_repeatXbothX_timesX10X_asXaX_out_asXbX_selectXa_bX() {
-            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.repeat(both()).times(10).as('a').out().as('b').select('a', 'b')");
+            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.repeat(both()).times(10).as('a').out().as('b').select('a', 'b')")
         }
 
         @Override
         public Traversal<Vertex, String> get_g_VX1X_repeatXoutX_untilXoutE_count_isX0XX_name(final Object v1Id) {
             new ScriptTraversal<>(g, "gremlin-groovy", "g.V(v1Id).repeat(out()).until(__.outE.count.is(0)).name", "v1Id", v1Id)
+        }
+
+        @Override
+        public Traversal<Vertex, Long> get_g_V_asXvX_emit_repeatXboth_asXvX_dedupX_selectXvX_count() {
+            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.as('v').emit.repeat(both.as('v').dedup).select('v').count")
+        }
+
+        @Override
+        public Traversal<Vertex, List<Vertex>> get_g_V_asXvX_emit_repeatXboth_asXvX_dedupX_selectXall_vX_order_byXcountXlocalXX() {
+            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.as('v').emit.repeat(both.as('v').dedup).select(all, 'v').order().by(count(local))")
         }
     }
 }
