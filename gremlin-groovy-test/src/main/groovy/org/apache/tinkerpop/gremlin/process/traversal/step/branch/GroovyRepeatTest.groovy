@@ -91,13 +91,13 @@ public abstract class GroovyRepeatTest {
         }
 
         @Override
-        public Traversal<Vertex, Long> get_g_V_asXvX_emit_repeatXboth_asXvX_dedupX_selectXvX_count() {
-            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.as('v').emit.repeat(both.as('v').dedup).select('v').count")
+        public Traversal<Vertex, Long> get_g_V_emit_repeatXboth_dedupX_count() {
+            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.emit.repeat(both.dedup).count")
         }
 
         @Override
-        public Traversal<Vertex, List<Vertex>> get_g_V_asXvX_emit_repeatXboth_asXvX_dedupX_selectXall_vX_order_byXcountXlocalXX() {
-            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.as('v').emit.repeat(both.as('v').dedup).select(all, 'v').order().by(count(local))")
+        public Traversal<Vertex, List<Vertex>> get_g_V_emit_repeatXboth_dedupX_order_byXcountXlocalXX() {
+            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.emit.repeat(both.dedup).order.by(count(local))")
         }
     }
 }
