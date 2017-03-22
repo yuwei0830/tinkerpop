@@ -86,7 +86,7 @@ limitations under the License.
                     <testSourceDirectory>${project.build.sourceDirectory}</testSourceDirectory>
                     <testClassesDirectory>${project.build.outputDirectory}</testClassesDirectory>
                     <includes>
-                        <include>**/*Benchmark*.java</include>
+                        <include>**/*MutateBenchmark*.java</include>
                     </includes>
                     <excludes>
                         <exclude>**/*$*.class</exclude>

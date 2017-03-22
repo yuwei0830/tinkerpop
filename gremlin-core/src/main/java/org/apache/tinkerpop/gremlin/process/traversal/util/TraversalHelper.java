@@ -27,6 +27,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.lambda.ElementValueTravers
 import org.apache.tinkerpop.gremlin.process.traversal.lambda.TokenTraversal;
 import org.apache.tinkerpop.gremlin.process.traversal.step.ByModulating;
 import org.apache.tinkerpop.gremlin.process.traversal.step.HasContainerHolder;
+import org.apache.tinkerpop.gremlin.process.traversal.step.MutatingContainerHolder;
 import org.apache.tinkerpop.gremlin.process.traversal.step.Scoping;
 import org.apache.tinkerpop.gremlin.process.traversal.step.TraversalParent;
 import org.apache.tinkerpop.gremlin.process.traversal.step.branch.RepeatStep;
@@ -38,6 +39,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.filter.WhereTraversal
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.EdgeVertexStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.LabelStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.MatchStep;
+import org.apache.tinkerpop.gremlin.process.traversal.step.map.MutatingStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.PropertiesStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.PropertyMapStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.VertexStep;
@@ -45,6 +47,8 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.sideEffect.StartStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.BulkSet;
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.EmptyStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer;
+import org.apache.tinkerpop.gremlin.process.traversal.step.util.MutatingContainer;
+import org.apache.tinkerpop.gremlin.structure.Element;
 import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 
@@ -198,13 +202,25 @@ public final class TraversalHelper {
         }
     }
 
+    /**
+     * Removes steps in a traversal starting at the {@code startStep} and ending inclusively with the {@code endStep}.
+     */
+    public static <S, E> void removeBetween(final Step<S, ?> startStep, final Step<?, E> endStep) {
+        removeToTraversal(startStep, endStep, null);
+    }
+
+    /**
+     * Removes steps in a traversal starting at the {@code startStep} and ending inclusively with the {@code endStep},
+     * storing them in the provided {@code newTraversal}. If the {@code newTraversal} is {@code null} then the steps
+     * are simply discarded.
+     */
     public static <S, E> void removeToTraversal(final Step<S, ?> startStep, final Step<?, E> endStep, final Traversal.Admin<S, E> newTraversal) {
         final Traversal.Admin<?, ?> originalTraversal = startStep.getTraversal();
         Step<?, ?> currentStep = startStep;
         while (currentStep != endStep && !(currentStep instanceof EmptyStep)) {
             final Step<?, ?> temp = currentStep.getNextStep();
             originalTraversal.removeStep(currentStep);
-            newTraversal.addStep(currentStep);
+            if (newTraversal != null) newTraversal.addStep(currentStep);
             currentStep = temp;
         }
     }
@@ -675,7 +691,8 @@ public final class TraversalHelper {
     }
 
     /**
-     * Used to left-fold a {@link HasContainer} to a {@link HasContainerHolder} if it exists. Else, append a {@link HasStep}.
+     * Used to left-fold a {@link HasContainer} to a {@link HasContainerHolder} if it exists. Else, append a
+     * {@link HasStep}.
      *
      * @param traversal    the traversal to fold or append.
      * @param hasContainer the container to add left or append.
@@ -688,5 +705,21 @@ public final class TraversalHelper {
             return traversal;
         } else
             return (T) traversal.addStep(new HasStep<>(traversal, hasContainer));
+    }
+
+    /**
+     * Used to left-fold a {@link MutatingContainer} to a {@link MutatingContainerHolder} if it exists. Else, append
+     * a {@link MutatingStep}.
+     *
+     * @param traversal         the traversal to fold or append.
+     * @param mutatingContainer the container to add left or append.
+     * @return the has container folded or appended traversal
+     */
+    public static Traversal.Admin addMutatingContainer(final Traversal.Admin traversal, final MutatingContainer mutatingContainer) {
+        if (traversal.getEndStep() instanceof MutatingContainerHolder) {
+            ((MutatingContainerHolder) traversal.getEndStep()).addMutatingContainer(mutatingContainer);
+            return traversal;
+        } else
+            return traversal.addStep(new MutatingStep<>(traversal, mutatingContainer));
     }
 }

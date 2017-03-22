@@ -51,6 +51,20 @@ public class GraphMutateBenchmark extends AbstractGraphMutateBenchmark {
     @Override
     public void prepare() {
         super.prepare();
+//
+//        withoutStrategies(ConnectiveStrategy.class,
+//                InlineFilterStrategy.class,
+//                IncidentToAdjacentStrategy.class,
+//                AdjacentToIncidentStrategy.class,
+//                FilterRankingStrategy.class,
+//                MatchPredicateStrategy.class,
+//                RepeatUnrollStrategy.class,
+//                RangeByIsCountStrategy.class,
+//                PathRetractionStrategy.class,
+//                LazyBarrierStrategy.class,
+//                ProfileStrategy.class,
+//                StandardVerificationStrategy.class)
+
         a = g.addV().next();
         b = g.addV().next();
         c = g.addV().next();
@@ -173,8 +187,8 @@ public class GraphMutateBenchmark extends AbstractGraphMutateBenchmark {
             }
         }
 
-        final Edge e = (Edge) t.next();
-        return e;
+        final Edge x = (Edge) t.next();
+        return x;
     }
 
     @Benchmark

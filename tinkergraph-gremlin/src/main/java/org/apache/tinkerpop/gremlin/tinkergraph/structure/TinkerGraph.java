@@ -22,6 +22,8 @@ import org.apache.commons.configuration.BaseConfiguration;
 import org.apache.commons.configuration.Configuration;
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies;
+import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
+import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Element;
 import org.apache.tinkerpop.gremlin.structure.Graph;
@@ -50,7 +52,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Stream;
 
 /**
  * An in-memory (with optional persistence on calls to {@link #close()}), reference implementation of the property
@@ -596,7 +597,11 @@ public final class TinkerGraph implements Graph {
         LONG {
             @Override
             public Long getNextId(final TinkerGraph graph) {
-                return Stream.generate(() -> (graph.currentId.incrementAndGet())).filter(id -> !graph.vertices.containsKey(id) && !graph.edges.containsKey(id)).findAny().get();
+                long id;
+                do {
+                    id = graph.currentId.getAndIncrement();
+                } while (graph.vertices.containsKey(id) || graph.edges.containsKey(id));
+                return id;
             }
 
             @Override
@@ -626,7 +631,11 @@ public final class TinkerGraph implements Graph {
         INTEGER {
             @Override
             public Integer getNextId(final TinkerGraph graph) {
-                return Stream.generate(() -> (graph.currentId.incrementAndGet())).map(Long::intValue).filter(id -> !graph.vertices.containsKey(id) && !graph.edges.containsKey(id)).findAny().get();
+                long id;
+                do {
+                    id = graph.currentId.getAndIncrement();
+                } while (graph.vertices.containsKey(id) || graph.edges.containsKey(id));
+                return (int) id;
             }
 
             @Override
@@ -686,7 +695,11 @@ public final class TinkerGraph implements Graph {
         ANY {
             @Override
             public Long getNextId(final TinkerGraph graph) {
-                return Stream.generate(() -> (graph.currentId.incrementAndGet())).filter(id -> !graph.vertices.containsKey(id) && !graph.edges.containsKey(id)).findAny().get();
+                long id;
+                do {
+                    id = graph.currentId.getAndIncrement();
+                } while (graph.vertices.containsKey(id) || graph.edges.containsKey(id));
+                return id;
             }
 
             @Override
@@ -700,4 +713,102 @@ public final class TinkerGraph implements Graph {
             }
         }
     }
+
+    public static void main(String[] args) {
+        GraphTraversalSource g = TinkerGraph.open().traversal();
+        for (int iz = 0; iz < 5000; iz++) {
+            GraphTraversal<Vertex, ?> t = g.addV("person");
+            for (int iy = 0; iy < 32; iy++) {
+                if (iy % 2 == 0)
+                    t = t.property("x" + String.valueOf(iy), iy * iz);
+                else
+                    t = t.property("x" + String.valueOf(iy), String.valueOf(iy + iz));
+            }
+
+            for (int ix = 0; ix < 100; ix++) {
+                t = t.addV("person");
+                for (int iy = 0; iy < 32; iy++) {
+                    if (iy % 2 == 0)
+                        t = t.property("x" + String.valueOf(iy), iy * iz);
+                    else
+                        t = t.property("x" + String.valueOf(iy), String.valueOf(iy + iz));
+                }
+            }
+
+            t.iterate();
+
+        }
+    }
+
+//    public static void main(String[] args) {
+//        GraphTraversalSource g = TinkerGraph.open().traversal().
+//                withoutStrategies(
+//                    org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.ConnectiveStrategy.class,
+//                    org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.InlineFilterStrategy.class,
+//                    org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.IncidentToAdjacentStrategy.class,
+//                    org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.AdjacentToIncidentStrategy.class,
+//                    org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.FilterRankingStrategy.class,
+//                    org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.MatchPredicateStrategy.class,
+//                    org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.RepeatUnrollStrategy.class,
+//                    org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.RangeByIsCountStrategy.class,
+//                    org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.PathRetractionStrategy.class,
+//                    org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.LazyBarrierStrategy.class,
+//                    org.apache.tinkerpop.gremlin.process.traversal.strategy.finalization.ProfileStrategy.class,
+//                    org.apache.tinkerpop.gremlin.process.traversal.strategy.verification.StandardVerificationStrategy.class).
+//                withStrategies(org.apache.tinkerpop.gremlin.process.traversal.strategy.optimization.MutatingStrategy.instance());
+//        for (int iz = 0; iz < 1000000; iz++) {
+//            GraphTraversal<Vertex, ?> t = g.addV("person");
+//            for (int iy = 0; iy < 32; iy++) {
+//                if (iy % 2 == 0)
+//                    t = t.property("x" + String.valueOf(iy), iy * iz);
+//                else
+//                    t = t.property("x" + String.valueOf(iy), String.valueOf(iy + iz));
+//            }
+//
+//            t.iterate();
+//
+//        }
+//    }
+
+
+//    public static void main(String[] args) {
+//        final java.util.Random rand = new java.util.Random(584545454L);
+//
+//        for (int iz = 0; iz < 10; iz++) {
+//            GraphTraversalSource g = TinkerGraph.open().traversal();
+//            GraphTraversal<Vertex, ?> t = null;
+//            for (int ix = 0; ix < 100; ix++) {
+//                if (null == t)
+//                    t = g.addV("person");
+//                else
+//                    t = t.addV("person");
+//
+//                for (int iy = 0; iy < 32; iy++) {
+//                    if (iy % 2 == 0)
+//                        t = t.property("x" + String.valueOf(iy), iy * ix);
+//                    else
+//                        t = t.property("x" + String.valueOf(iy), String.valueOf(iy + ix));
+//                }
+//
+//                t = t.as("person" + ix);
+//
+//                if (ix > 0) {
+//                    int edgeCount = ix == 99 ? 6 : 3;
+//                    for (int ie = 0; ie < edgeCount; ie++) {
+//                        t = t.addE("knows").from("person" + ix).to("person" + rand.nextInt(ix));
+//
+//                        for (int iy = 0; iy < 8; iy++) {
+//                            if (iy % 2 == 0)
+//                                t = t.property("x" + String.valueOf(iy), iy * ie);
+//                            else
+//                                t = t.property("x" + String.valueOf(iy), String.valueOf(iy + ie));
+//                        }
+//                    }
+//                }
+//            }
+//
+//            t.iterate();
+//
+//        }
+//    }
 }
