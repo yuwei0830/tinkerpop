@@ -132,6 +132,23 @@ public abstract class AbstractGremlinTest {
     @After
     public void tearDown() throws Exception {
         if (null != graphProvider) {
+            final Method testMethod = this.getClass().getMethod(cleanMethodName(name.getMethodName()));
+            final LoadGraphWith[] loadGraphWiths = testMethod.getAnnotationsByType(LoadGraphWith.class);
+            final LoadGraphWith loadGraphWith = loadGraphWiths.length == 0 ? null : loadGraphWiths[0];
+            final LoadGraphWith.GraphData loadGraphWithData = null == loadGraphWith ? null : loadGraphWith.value();
+
+            // toy graphs should stay static
+            if (loadGraphWithData != null) {
+                if (loadGraphWithData.equals(LoadGraphWith.GraphData.CLASSIC))
+                    assertVertexEdgeCounts(graph, 6, 6);
+                else if (loadGraphWithData.equals(LoadGraphWith.GraphData.MODERN))
+                    assertVertexEdgeCounts(graph, 6, 6);
+                else if (loadGraphWithData.equals(LoadGraphWith.GraphData.CREW))
+                    assertVertexEdgeCounts(graph, 6, 14);
+                else if (loadGraphWithData.equals(LoadGraphWith.GraphData.GRATEFUL))
+                    org.junit.Assert.assertTrue(true);
+            }
+
             graphProvider.getTestListener().ifPresent(l -> l.onTestEnd(this.getClass(), name.getMethodName()));
             graphProvider.clear(graph, config);
 
