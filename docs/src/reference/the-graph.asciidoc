@@ -721,7 +721,7 @@ f.close()
 Creating a GraphSON 2.0 mapper is done by calling `.version(GraphSONVersion.V2_0)` on the mapper builder. Here's is the
 example output from the code above:
 
-[source, json]
+[source,json]
 ----
 {
     "@type": "g:Vertex",

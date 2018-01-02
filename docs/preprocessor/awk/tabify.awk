@@ -61,7 +61,7 @@ BEGIN {
   code = ""
 }
 
-/^\[source,/ {
+/^\[source,(csharp|groovy|java|python)/ {
   if (status == 3) {
     status = 1
     lang = gensub(/^\[source,([^\]]+).*/, "\\1", "g", $0)
@@ -69,7 +69,7 @@ BEGIN {
   }
 }
 
-! /^\[source,/ {
+! /^\[source,(csharp|groovy|java|python)/ {
   if (status == 3 && $0 != "") {
     print_tabs(next_id, tabs, blocks)
     next_id = next_id + length(tabs)
