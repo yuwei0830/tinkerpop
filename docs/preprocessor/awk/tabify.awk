@@ -47,6 +47,10 @@ function print_tabs(next_id, tabs, blocks) {
   print "++++\n"
 }
 
+function transform_callouts(code, c) {
+  return gensub(/\s*((<[0-9]+>\s*)*<[0-9]+>)\s*\n/, " " c c " \\1\\2\n", "g", code)
+}
+
 BEGIN {
   id_part=systime()
   status = 0
@@ -98,7 +102,15 @@ BEGIN {
         i++
       }
       tabs[i] = lang
-      blocks[i] = "[source," lang "]" code "\n" $0 "\n"
+      switch (lang) {
+        case "python":
+          c = "#"
+          break
+        default:
+          c = "//"
+          break
+      }
+      blocks[i] = "[source," lang "]" transform_callouts(code, c) "\n" $0 "\n"
     }
   } else {
     if (status == 0) print
