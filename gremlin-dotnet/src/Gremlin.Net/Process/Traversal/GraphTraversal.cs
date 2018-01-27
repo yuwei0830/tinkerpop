@@ -355,7 +355,7 @@ namespace Gremlin.Net.Process.Traversal
         /// <summary>
         ///     Adds the choose step to this <see cref="GraphTraversal{SType, EType}" />.
         /// </summary>
-        public GraphTraversal<S, E2> Choose<E2> (TraversalPredicate choosePredicate, ITraversal trueChoice)
+        public GraphTraversal<S, E2> Choose<E2> (object choosePredicate, ITraversal trueChoice)
         {
             Bytecode.AddStep("choose", choosePredicate, trueChoice);
             return Wrap<S, E2>(this);
@@ -364,7 +364,7 @@ namespace Gremlin.Net.Process.Traversal
         /// <summary>
         ///     Adds the choose step to this <see cref="GraphTraversal{SType, EType}" />.
         /// </summary>
-        public GraphTraversal<S, E2> Choose<E2> (TraversalPredicate choosePredicate, ITraversal trueChoice, ITraversal falseChoice)
+        public GraphTraversal<S, E2> Choose<E2> (object choosePredicate, ITraversal trueChoice, ITraversal falseChoice)
         {
             Bytecode.AddStep("choose", choosePredicate, trueChoice, falseChoice);
             return Wrap<S, E2>(this);
@@ -496,7 +496,7 @@ namespace Gremlin.Net.Process.Traversal
         /// <summary>
         ///     Adds the emit step to this <see cref="GraphTraversal{SType, EType}" />.
         /// </summary>
-        public GraphTraversal<S, E> Emit (TraversalPredicate emitPredicate)
+        public GraphTraversal<S, E> Emit (object emitPredicate)
         {
             Bytecode.AddStep("emit", emitPredicate);
             return Wrap<S, E>(this);
@@ -514,7 +514,7 @@ namespace Gremlin.Net.Process.Traversal
         /// <summary>
         ///     Adds the filter step to this <see cref="GraphTraversal{SType, EType}" />.
         /// </summary>
-        public GraphTraversal<S, E> Filter (TraversalPredicate predicate)
+        public GraphTraversal<S, E> Filter (object predicate)
         {
             Bytecode.AddStep("filter", predicate);
             return Wrap<S, E>(this);
@@ -1591,7 +1591,7 @@ namespace Gremlin.Net.Process.Traversal
         /// <summary>
         ///     Adds the until step to this <see cref="GraphTraversal{SType, EType}" />.
         /// </summary>
-        public GraphTraversal<S, E> Until (TraversalPredicate untilPredicate)
+        public GraphTraversal<S, E> Until (object untilPredicate)
         {
             Bytecode.AddStep("until", untilPredicate);
             return Wrap<S, E>(this);

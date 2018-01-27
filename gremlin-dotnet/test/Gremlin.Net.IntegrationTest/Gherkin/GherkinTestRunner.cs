@@ -37,9 +37,6 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
 {
     public class GherkinTestRunner
     {
-        private static readonly IDictionary<string, IgnoreReason> IgnoredScenarios =
-            new Dictionary<string, IgnoreReason>();
-        
         private static class Keywords
         {
             public const string Given = "GIVEN";
@@ -84,11 +81,6 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
                 {
                     var failedSteps = new Dictionary<Step, Exception>();
                     resultFeature.Scenarios[scenario] = failedSteps;
-                    if (IgnoredScenarios.TryGetValue(scenario.Name, out var reason))
-                    {
-                        failedSteps.Add(scenario.Steps.First(), new IgnoreException(reason));
-                        break;
-                    }
                     StepBlock? currentStep = null;
                     StepDefinition stepDefinition = null;
                     foreach (var step in scenario.Steps)
@@ -136,7 +128,6 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
             var failures = new List<Tuple<string, Exception>>();
             var totalScenarios = 0;
             var totalFailed = 0;
-            var totalIgnored = 0;
             foreach (var resultFeature in results)
             {
                 foreach (var resultScenario in resultFeature.Scenarios)
@@ -152,16 +143,8 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
                         }
                         else
                         {
-                            if (failure is IgnoreException)
-                            {
-                                totalIgnored++;
-                                WriteOutput($"    {++identifier}) {step.Keyword} {step.Text} (ignored)");
-                            }
-                            else
-                            {
-                                totalFailed++;
-                                WriteOutput($"    {++identifier}) {step.Keyword} {step.Text} (failed)");
-                            }
+                            totalFailed++;
+                            WriteOutput($"    {++identifier}) {step.Keyword} {step.Text} (failed)");
                             failures.Add(Tuple.Create(resultScenario.Key.Name, failure));
                         }
                     }
@@ -169,24 +152,18 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
             }
             if (totalFailed > 0)
             {
-                WriteOutput("Failures" + (totalIgnored > 0 ? " and skipped scenarios" : "") + ":");
-            }
-            else if (totalIgnored > 0)
-            {
-                WriteOutput("Skipped scenarios:");
+                WriteOutput("Failures:");
             }
             for (var index = 0; index < failures.Count; index++)
             {
                 var failure = failures[index];
-                var message = failure.Item2 is IgnoreException
-                    ? ": " + failure.Item2.Message
-                    : ": Failed\n" + failure.Item2;
+                var message = ": Failed\n" + failure.Item2;
                 WriteOutput($"{index+1}) {failure.Item1}{message}");
             }
             WriteOutput("-----------------");
             WriteOutput($"Total scenarios: {totalScenarios}." +
-                              $" Passed: {totalScenarios-totalFailed-totalIgnored}." +
-                              $" Failed: {totalFailed}. Skipped: {totalIgnored}.");
+                              $" Passed: {totalScenarios-totalFailed}." +
+                              $" Failed: {totalFailed}.");
             if (totalFailed == 0)
             {
                 return;

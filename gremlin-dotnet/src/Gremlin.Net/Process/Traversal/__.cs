@@ -231,7 +231,7 @@ namespace Gremlin.Net.Process.Traversal
         /// <summary>
         ///     Spawns a <see cref="GraphTraversal{SType, EType}" /> and adds the choose step to that traversal.
         /// </summary>
-        public static GraphTraversal<object, E2> Choose<E2>(TraversalPredicate choosePredicate, ITraversal trueChoice)
+        public static GraphTraversal<object, E2> Choose<E2>(object choosePredicate, ITraversal trueChoice)
         {
             return new GraphTraversal<object, E2>().Choose<E2>(choosePredicate, trueChoice);            
         }
@@ -239,7 +239,7 @@ namespace Gremlin.Net.Process.Traversal
         /// <summary>
         ///     Spawns a <see cref="GraphTraversal{SType, EType}" /> and adds the choose step to that traversal.
         /// </summary>
-        public static GraphTraversal<object, E2> Choose<E2>(TraversalPredicate choosePredicate, ITraversal trueChoice, ITraversal falseChoice)
+        public static GraphTraversal<object, E2> Choose<E2>(object choosePredicate, ITraversal trueChoice, ITraversal falseChoice)
         {
             return new GraphTraversal<object, E2>().Choose<E2>(choosePredicate, trueChoice, falseChoice);            
         }
@@ -357,7 +357,7 @@ namespace Gremlin.Net.Process.Traversal
         /// <summary>
         ///     Spawns a <see cref="GraphTraversal{SType, EType}" /> and adds the emit step to that traversal.
         /// </summary>
-        public static GraphTraversal<object, object> Emit(TraversalPredicate emitPredicate)
+        public static GraphTraversal<object, object> Emit(object emitPredicate)
         {
             return new GraphTraversal<object, object>().Emit(emitPredicate);            
         }
@@ -373,7 +373,7 @@ namespace Gremlin.Net.Process.Traversal
         /// <summary>
         ///     Spawns a <see cref="GraphTraversal{SType, EType}" /> and adds the filter step to that traversal.
         /// </summary>
-        public static GraphTraversal<object, object> Filter(TraversalPredicate predicate)
+        public static GraphTraversal<object, object> Filter(object predicate)
         {
             return new GraphTraversal<object, object>().Filter(predicate);            
         }
@@ -1239,7 +1239,7 @@ namespace Gremlin.Net.Process.Traversal
         /// <summary>
         ///     Spawns a <see cref="GraphTraversal{SType, EType}" /> and adds the until step to that traversal.
         /// </summary>
-        public static GraphTraversal<object, object> Until(TraversalPredicate untilPredicate)
+        public static GraphTraversal<object, object> Until(object untilPredicate)
         {
             return new GraphTraversal<object, object>().Until(untilPredicate);            
         }
