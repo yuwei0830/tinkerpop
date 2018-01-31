@@ -53,6 +53,10 @@ public class StandardVerificationStrategyTest {
                 {"__.repeat(sum()).times(2)", repeat(sum()).times(2), false},
                 {"__.repeat(out().count())", repeat(out().count()), false},
                 // traversals that should pass verification
+                {"__.V().profile()",__.V().profile(), true},
+                {"__.V().profile().none()",__.V().profile("x").none(), true},
+                {"__.V().profile()",__.V().profile("x").cap("x"), true},
+                {"__.V().profile('x').cap('x').none()",__.V().profile("x").cap("x").none(), true},
                 {"__.V().profile().requirementsStep()",
                         __.V().profile().asAdmin().addStep(emptyRequirementStep), true},
                 {"__.V().profile('metrics').cap('metrics').requirementsStep()",
