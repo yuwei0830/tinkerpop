@@ -35,6 +35,21 @@ public abstract class GroovyMaxTest {
         }
 
         @Override
+        public Traversal<Vertex, Integer> get_g_V_age_fold_maxXlocalX() {
+            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.age.fold.max(local)")
+        }
+
+        @Override
+        public Traversal<Vertex, Number> get_g_V_foo_max() {
+            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.foo.max")
+        }
+
+        @Override
+        public Traversal<Vertex, Number> get_g_V_foo_fold_maxXlocalX() {
+            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.foo.fold.max(local)")
+        }
+
+        @Override
         public Traversal<Vertex, Integer> get_g_V_repeatXbothX_timesX5X_age_max() {
             new ScriptTraversal<>(g, "gremlin-groovy", "g.V.repeat(__.both).times(5).age.max")
         }

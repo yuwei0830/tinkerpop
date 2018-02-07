@@ -21,11 +21,16 @@ package org.apache.tinkerpop.gremlin.process.traversal.step.map;
 import org.apache.tinkerpop.gremlin.LoadGraphWith;
 import org.apache.tinkerpop.gremlin.process.AbstractGremlinProcessTest;
 import org.apache.tinkerpop.gremlin.process.GremlinProcessRunner;
+import org.apache.tinkerpop.gremlin.process.traversal.Scope;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.BufferedWriter;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -41,6 +46,12 @@ public abstract class MaxTest extends AbstractGremlinProcessTest {
 
     public abstract Traversal<Vertex, Integer> get_g_V_age_max();
 
+    public abstract Traversal<Vertex, Integer> get_g_V_age_fold_maxXlocalX();
+
+    public abstract Traversal<Vertex, Number> get_g_V_foo_max();
+
+    public abstract Traversal<Vertex, Number> get_g_V_foo_fold_maxXlocalX();
+
     public abstract Traversal<Vertex, Integer> get_g_V_repeatXbothX_timesX5X_age_max();
 
     public abstract Traversal<Vertex, Map<String, Number>> get_g_V_hasLabelXsoftwareX_group_byXnameX_byXbothE_weight_maxX();
@@ -51,6 +62,50 @@ public abstract class MaxTest extends AbstractGremlinProcessTest {
         final Traversal<Vertex, Integer> traversal = get_g_V_age_max();
         printTraversalForm(traversal);
         checkResults(Arrays.asList(35), traversal);
+    }
+
+    @Test
+    @LoadGraphWith(MODERN)
+    public void g_V_age_fold_maxXlocalX() {
+        final Traversal<Vertex, Integer> traversal = get_g_V_age_fold_maxXlocalX();
+        printTraversalForm(traversal);
+        checkResults(Arrays.asList(35), traversal);
+    }
+
+    @Test
+    @LoadGraphWith(MODERN)
+    public void g_V_foo_max() {
+        try {
+            final Traversal<Vertex, Number> traversal = get_g_V_foo_max();
+            printTraversalForm(traversal);
+            assertFalse(traversal.hasNext());
+        } catch (AssertionError ex) {
+            try {
+                final BufferedWriter writer = new BufferedWriter(new FileWriter("/tmp/exception.txt", true));
+                writer.append("MSG: " + ex.getMessage());
+                writer.append('\n');
+                final Traversal<Vertex, Number> t = get_g_V_foo_max();
+                writer.append("HAS NEXT: " + t.hasNext());
+                writer.append('\n');
+                t.forEachRemaining(res -> {
+                    try {
+                        writer.append("" + res);
+                        writer.append('\n');
+                    } catch (IOException ignored2) {}
+                });
+                writer.append("END\n");
+                writer.close();
+            } catch (IOException ignored) { }
+            throw ex;
+        }
+    }
+
+    @Test
+    @LoadGraphWith(MODERN)
+    public void g_V_foo_fold_maxXlocalX() {
+        final Traversal<Vertex, Number> traversal = get_g_V_foo_fold_maxXlocalX();
+        printTraversalForm(traversal);
+        assertFalse(traversal.hasNext());
     }
 
     @Test
@@ -79,6 +134,21 @@ public abstract class MaxTest extends AbstractGremlinProcessTest {
         @Override
         public Traversal<Vertex, Integer> get_g_V_age_max() {
             return g.V().values("age").max();
+        }
+
+        @Override
+        public Traversal<Vertex, Integer> get_g_V_age_fold_maxXlocalX() {
+            return g.V().values("age").fold().max(Scope.local);
+        }
+
+        @Override
+        public Traversal<Vertex, Number> get_g_V_foo_max() {
+            return g.V().values("foo").max();
+        }
+
+        @Override
+        public Traversal<Vertex, Number> get_g_V_foo_fold_maxXlocalX() {
+            return g.V().values("foo").fold().max(Scope.local);
         }
 
         @Override

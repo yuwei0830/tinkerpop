@@ -35,6 +35,21 @@ public abstract class GroovyMinTest {
         }
 
         @Override
+        public Traversal<Vertex, Integer> get_g_V_age_fold_minXlocalX() {
+            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.age.fold.min(local)")
+        }
+
+        @Override
+        public Traversal<Vertex, Number> get_g_V_foo_min() {
+            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.foo.min")
+        }
+
+        @Override
+        public Traversal<Vertex, Number> get_g_V_foo_fold_minXlocalX() {
+            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.foo.fold.min(local)")
+        }
+
+        @Override
         public Traversal<Vertex, Integer> get_g_V_repeatXbothX_timesX5X_age_min() {
             new ScriptTraversal<>(g, "gremlin-groovy", "g.V.repeat(__.both).times(5).age.min")
         }

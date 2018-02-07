@@ -35,6 +35,21 @@ public abstract class GroovyMeanTest {
         }
 
         @Override
+        public Traversal<Vertex, Double> get_g_V_age_fold_meanXlocalX() {
+            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.age.fold.mean(local)")
+        }
+
+        @Override
+        public Traversal<Vertex, Number> get_g_V_foo_mean() {
+            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.foo.mean")
+        }
+
+        @Override
+        public Traversal<Vertex, Number> get_g_V_foo_fold_meanXlocalX() {
+            new ScriptTraversal<>(g, "gremlin-groovy", "g.V.foo.fold.mean(local)")
+        }
+
+        @Override
         public Traversal<Vertex, Map<String, Number>> get_g_V_hasLabelXsoftwareX_group_byXnameX_byXbothE_weight_meanX() {
             new ScriptTraversal<>(g, "gremlin-groovy", "g.V().hasLabel('software').group().by('name').by(bothE().weight.mean)")
         }
